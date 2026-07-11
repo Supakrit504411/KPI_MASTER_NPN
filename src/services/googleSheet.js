@@ -133,6 +133,50 @@ export async function updateNote(row, note, meta = {}) {
   return { success: true, local: false, action: result?.action };
 }
 
+export async function checkAccess(lineUserId) {
+  const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL;
+  if (!scriptUrl) return { allowed: true, role: 'admin' };
+  try {
+    const res = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'checkAccess', lineUserId }),
+    });
+    return await res.json();
+  } catch {
+    return { allowed: true, role: 'user' };
+  }
+}
+
+export async function getDataStatus() {
+  const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL;
+  if (!scriptUrl) return '';
+  try {
+    const res = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'getDataStatus' }),
+    });
+    const data = await res.json();
+    return data.value || '';
+  } catch {
+    return '';
+  }
+}
+
+export async function updateDataStatus(value, lineUserId) {
+  const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL;
+  if (!scriptUrl) return false;
+  const res = await fetch(scriptUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'updateDataStatus', value, lineUserId }),
+  });
+  const data = await res.json();
+  if (data.success === false) throw new Error(data.error);
+  return true;
+}
+
 export async function logAccess(profile) {
   const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL;
   if (!scriptUrl) return;

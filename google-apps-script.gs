@@ -32,6 +32,10 @@ var NOTE_API_SPREADSHEET_ID = '1P90pDKqos8bchlJRpr7GiQQJPEXdMIZvBps5BDVO1zE';
 var NOTE_API_SHEET_NAME = 'LMS';
 // ชื่อชีตเก็บ log
 var NOTE_API_LOG_SHEET = 'NoteLogs';
+// ชื่อชีตรายชื่อผู้มีสิทธิ์เข้าใช้งาน
+var NOTE_API_USERS_SHEET = 'AllowedUsers';
+// LINE User ID ของ admin (มีสิทธิ์เข้าได้เสมอ + จัดการสถานะข้อมูล)
+var ADMIN_LINE_USER_ID = 'U59393eba272a6659fa14e3bdd1cc9289';
 
 /**
  * รับคำขอ GET (สำหรับ health check)
@@ -62,12 +66,42 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
 
+    // ตรวจสอบสิทธิ์เข้าใช้งาน
+    if (body.action === 'checkAccess') {
+      var ss = SpreadsheetApp.openById(NOTE_API_SPREADSHEET_ID);
+      var result = noteApi_checkUserAccess(ss, body.lineUserId || '');
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // บันทึกประวัติเข้าใช้งาน (LINE Login)
     if (body.action === 'logAccess') {
       var ss = SpreadsheetApp.openById(NOTE_API_SPREADSHEET_ID);
       noteApi_appendAccessLog(ss, body);
       return ContentService
         .createTextOutput(JSON.stringify({ success: true, message: 'Access logged' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // อัปเดตสถานะข้อมูล (admin เท่านั้น)
+    if (body.action === 'updateDataStatus') {
+      if (body.lineUserId !== ADMIN_LINE_USER_ID) {
+        return noteApi_jsonError('ไม่มีสิทธิ์แก้ไขสถานะข้อมูล');
+      }
+      var ss = SpreadsheetApp.openById(NOTE_API_SPREADSHEET_ID);
+      noteApi_setConfig(ss, 'dataStatus', body.value || '');
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, value: body.value }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // อ่านสถานะข้อมูล
+    if (body.action === 'getDataStatus') {
+      var ss = SpreadsheetApp.openById(NOTE_API_SPREADSHEET_ID);
+      var val = noteApi_getConfig(ss, 'dataStatus');
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, value: val }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -182,6 +216,70 @@ function noteApi_appendAccessLog(ss, info) {
   }
   var timestamp = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
   logSheet.appendRow([timestamp, info.user || '', info.lineUserId || '', info.ip || '', info.userAgent || '']);
+}
+
+/**
+ * ตรวจสอบว่า LINE User ID มีสิทธิ์เข้าใช้งานหรือไม่
+ * ชีต AllowedUsers: คอลัมน์ A = LINE User ID, B = ชื่อ, C = สถานะ (Active/Blocked)
+ * ถ้าไม่มีชีตหรือไม่มีชื่อ → สร้างชีตพร้อมเพิ่ม admin เริ่มต้น
+ * admin (ADMIN_LINE_USER_ID) เข้าได้เสมอ
+ */
+function noteApi_checkUserAccess(ss, lineUserId) {
+  if (!lineUserId) return { success: true, allowed: false, reason: 'ไม่พบ LINE User ID' };
+  if (lineUserId === ADMIN_LINE_USER_ID) return { success: true, allowed: true, role: 'admin' };
+
+  var sheet = ss.getSheetByName(NOTE_API_USERS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(NOTE_API_USERS_SHEET);
+    sheet.appendRow(['LINE User ID', 'ชื่อ', 'สถานะ', 'วันที่เพิ่ม']);
+    sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#e8f0fe');
+    sheet.setFrozenRows(1);
+    sheet.appendRow([ADMIN_LINE_USER_ID, 'Admin', 'Active', Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss')]);
+  }
+
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === lineUserId) {
+      var status = String(data[i][2]).trim();
+      if (status === 'Active') {
+        return { success: true, allowed: true, role: 'user' };
+      } else {
+        return { success: true, allowed: false, reason: 'บัญชีถูกระงับ (Blocked)' };
+      }
+    }
+  }
+  return { success: true, allowed: false, reason: 'ไม่มีสิทธิ์เข้าใช้งาน กรุณาติดต่อผู้ดูแลระบบ' };
+}
+
+/**
+ * อ่าน/เขียนค่า config ในชีต Config (key-value)
+ */
+function noteApi_getConfig(ss, key) {
+  var sheet = ss.getSheetByName('Config');
+  if (!sheet) return '';
+  var data = sheet.getDataRange().getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === key) return String(data[i][1] || '');
+  }
+  return '';
+}
+
+function noteApi_setConfig(ss, key, value) {
+  var sheet = ss.getSheetByName('Config');
+  if (!sheet) {
+    sheet = ss.insertSheet('Config');
+    sheet.appendRow(['key', 'value']);
+    sheet.getRange(1, 1, 1, 2).setFontWeight('bold').setBackground('#e8f0fe');
+    sheet.setFrozenRows(1);
+  }
+  var data = sheet.getDataRange().getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === key) {
+      sheet.getRange(i + 1, 2).setValue(value);
+      return;
+    }
+  }
+  sheet.appendRow([key, value]);
 }
 
 /**

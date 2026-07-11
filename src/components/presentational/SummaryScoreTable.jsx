@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { Table } from 'lucide-react';
 
 /**
@@ -7,8 +7,19 @@ import { Table } from 'lucide-react';
  * Row A2+ = item numbers, Row B2+ = KPI scores for each selected PEA
  * Clickable item numbers to interact with ItemComparison and DataTable
  */
-export default function SummaryScoreTable({ rawData, selectedPEAs, onItemSelect, highlightedItem }) {
+export default function SummaryScoreTable({ rawData, selectedPEAs, onItemSelect, highlightedItem, allData }) {
   const [hoveredItem, setHoveredItem] = useState(null);
+
+  const itemDescriptions = useMemo(() => {
+    const map = {};
+    const source = allData || rawData;
+    for (const row of source) {
+      if (row.item && row.description && !map[row.item]) {
+        map[row.item] = row.description;
+      }
+    }
+    return map;
+  }, [allData, rawData]);
 
   const tableData = useMemo(() => {
     if (!selectedPEAs || selectedPEAs.length === 0) return null;
@@ -69,10 +80,10 @@ export default function SummaryScoreTable({ rawData, selectedPEAs, onItemSelect,
 
       <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
         <table className="w-full text-sm border-collapse">
-          <thead>
+          <thead className="sticky top-0 z-20">
             <tr className="bg-gray-100 border-b border-gray-300">
               <th
-                className="sticky left-0 z-20 bg-gray-100 px-3 py-3 text-center text-xs font-bold text-gray-700 border-r border-gray-300 min-w-[80px]"
+                className="sticky left-0 top-0 z-30 bg-gray-100 px-3 py-3 text-center text-xs font-bold text-gray-700 border-r border-gray-300 min-w-[80px]"
                 rowSpan={2}
               >
                 ข้อที่
@@ -99,19 +110,25 @@ export default function SummaryScoreTable({ rawData, selectedPEAs, onItemSelect,
                 onMouseEnter={() => setHoveredItem(item)}
                 onMouseLeave={() => setHoveredItem(null)}
               >
-                {/* Item Number — sticky column, clickable */}
+                {/* Item Number — sticky column, clickable, hover shows description */}
                 <td
-                  className={`sticky left-0 z-10 px-3 py-2.5 text-center font-bold text-sm border-r border-gray-300 cursor-pointer transition-colors
+                  className={`sticky left-0 z-10 px-3 py-2.5 text-center font-bold text-sm border-r border-gray-300 cursor-pointer transition-colors relative group/item
                     ${isHighlighted ? 'bg-blue-100 text-blue-700 shadow-[inset_0_0_0_2px_rgba(96,165,250,1)]' : ''}
                     ${!isHighlighted && hoveredItem === item ? 'bg-blue-50 text-blue-600' : ''}
                     ${!isHighlighted && hoveredItem !== item ? (itemIdx % 2 === 0 ? 'bg-white text-gray-800' : 'bg-gray-50 text-gray-800') : ''}`}
                   onClick={() => handleItemClick(item)}
-                  title="คลิกเพื่อแสดงในตารางข้อมูลและเปรียบเทียบ"
                 >
                   <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold transition-colors
                     ${isHighlighted ? 'bg-blue-200 text-blue-800' : 'bg-blue-100 text-blue-700 group-hover:bg-blue-200'}`}>
                     {item}
                   </span>
+                  {itemDescriptions[item] && (
+                    <div className="hidden group-hover/item:block absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 w-64 px-3 py-2 bg-gray-800 text-white text-xs text-left rounded-lg shadow-lg whitespace-normal leading-relaxed pointer-events-none">
+                      <div className="font-semibold text-yellow-300 mb-0.5">ข้อ {item}</div>
+                      {itemDescriptions[item]}
+                      <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-800" />
+                    </div>
+                  )}
                 </td>
 
                 {/* Scores for each PEA */}

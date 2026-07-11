@@ -46,16 +46,16 @@ export default function PEASummaryTable({ summaries, activePEA, activeStatus, on
 function PEASummaryGrid({ summaries, activePEA, activeStatus, onCardClick }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-full">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">หน่วยงาน</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">ผ่าน</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">ไม่ผ่าน</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">รอผล</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">อัตราผ่าน</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">คะแนนรวม</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-48 bg-gray-50">หน่วยงาน</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">ผ่าน</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">ไม่ผ่าน</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">รอผล</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">อัตราผ่าน</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">คะแนนรวม</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -157,16 +157,16 @@ function PEASummaryGrid({ summaries, activePEA, activeStatus, onCardClick }) {
 function PEASummaryTableMode({ summaries, activePEA, activeStatus, onCardClick }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">หน่วยงาน</th>
-              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">ผ่าน</th>
-              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">ไม่ผ่าน</th>
-              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">รอผล</th>
-              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">อัตราผ่าน</th>
-              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">คะแนนรวม</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-20">หน่วยงาน</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">ผ่าน</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">ไม่ผ่าน</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">รอผล</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">อัตราผ่าน</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">คะแนนรวม</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

@@ -125,7 +125,7 @@ export default function DataTable({ data, notes, onNoteChange, onSaveNote, highl
         </div>
         <div className={`overflow-x-auto ${isFullscreen ? 'flex-1 overflow-y-auto' : ''}`}>
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-gradient-to-r from-gray-700 to-gray-600 text-white">
                 <th className="px-2 py-3 text-center font-medium w-8">#</th>
                 <th className="px-2 py-3 text-center font-medium w-12">ข้อ</th>

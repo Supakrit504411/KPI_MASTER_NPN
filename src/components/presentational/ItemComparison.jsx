@@ -127,13 +127,11 @@ export default function ItemComparison({ rawData, items, onSelectedItemChange, h
   const handleItemClick = (idx) => {
     const clickedItem = filteredItems[idx];
     if (highlightedItem === clickedItem) {
-      // Toggle off: reset local state and signal parent to clear highlightedItem
       setSelectedIdx(-1);
-      if (onSelectedItemChange) {
-        onSelectedItemChange(null);
-      }
+      if (onSelectedItemChange) onSelectedItemChange(null);
     } else {
       setSelectedIdx(idx);
+      if (onSelectedItemChange) onSelectedItemChange(clickedItem);
     }
   };
 

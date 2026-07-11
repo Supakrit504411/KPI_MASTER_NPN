@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import useSheetData from '../../hooks/useSheetData';
 import useNotes from '../../hooks/useNotes';
 import useLiff from '../../hooks/useLiff';
@@ -15,7 +15,9 @@ import LoadingSpinner from '../presentational/LoadingSpinner';
 import ErrorMessage from '../presentational/ErrorMessage';
 import SummaryScoreTable from '../presentational/SummaryScoreTable';
 import { getUniqueItems } from '../../utils/parseCSV';
-import { Monitor, Layers, LogIn } from 'lucide-react';
+import { getDataStatus, updateDataStatus } from '../../services/googleSheet';
+import { Monitor, Layers, LogIn, ShieldX, Camera, Settings } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 export default function DashboardContainer() {
   const {
@@ -41,10 +43,42 @@ export default function DashboardContainer() {
   const [activeStatus, setActiveStatus] = useState(null);
   const [cardFilter, setCardFilter] = useState({ pea: null, status: null });
   const [highlightedItem, setHighlightedItem] = useState(null);
+  const [dataStatus, setDataStatus] = useState('');
+  const [editingStatus, setEditingStatus] = useState(false);
+  const [statusDraft, setStatusDraft] = useState('');
+  const summaryTableRef = useRef(null);
+  const dataTableSectionRef = useRef(null);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    getDataStatus().then((v) => setDataStatus(v));
+  }, []);
+
+  const handleSaveDataStatus = async () => {
+    try {
+      await updateDataStatus(statusDraft, liff.profile?.userId || '');
+      setDataStatus(statusDraft);
+      setEditingStatus(false);
+    } catch {
+      alert('ไม่สามารถบันทึกสถานะข้อมูลได้');
+    }
+  };
+
+  const handleScreenshot = async (ref) => {
+    if (!ref?.current) return;
+    try {
+      const canvas = await html2canvas(ref.current, { useCORS: true, scale: 2, backgroundColor: '#ffffff' });
+      const link = document.createElement('a');
+      link.download = `pea-dashboard-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    } catch {
+      alert('ไม่สามารถบันทึกภาพได้');
+    }
+  };
 
   const resetDetailFilters = () => {
     setActiveStatus(null);
@@ -112,6 +146,38 @@ export default function DashboardContainer() {
   // บังคับ login ก่อนเห็นข้อมูลใดๆ
   if (!liff.ready) {
     return <LoadingSpinner message="กำลังเตรียมระบบล็อกอิน..." />;
+  }
+
+  if (liff.loggedIn && liff.accessStatus === null) {
+    return <LoadingSpinner message="กำลังตรวจสอบสิทธิ์เข้าใช้งาน..." />;
+  }
+
+  if (liff.loggedIn && liff.accessStatus === 'blocked') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-800 to-red-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center space-y-6">
+          <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+            <ShieldX className="w-8 h-8 text-red-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800 mb-1">ไม่มีสิทธิ์เข้าใช้งาน</h1>
+            <p className="text-sm text-gray-500">{liff.accessMessage}</p>
+          </div>
+          {liff.profile && (
+            <div className="flex items-center gap-2 justify-center bg-gray-50 rounded-lg px-3 py-2">
+              {liff.profile.pictureUrl && <img src={liff.profile.pictureUrl} alt="" className="w-8 h-8 rounded-full" />}
+              <span className="text-sm text-gray-700">{liff.profile.displayName}</span>
+            </div>
+          )}
+          <button
+            onClick={liff.logout}
+            className="w-full py-3 px-6 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium text-sm transition-colors"
+          >
+            ออกจากระบบ
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!liff.loggedIn) {
@@ -261,15 +327,73 @@ export default function DashboardContainer() {
           </div>
         </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <span className="w-1 h-5 bg-blue-600 rounded-full inline-block" />
-            สรุปผลงานรายหน่วยงาน
-            <span className="text-sm font-normal text-gray-400">(คลิกที่ตัวเลขเพื่อกรอง)</span>
-            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
-              {peas.length} หน่วยงาน
-            </span>
-          </h2>
+        <section ref={summaryTableRef}>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+              <span className="w-1 h-5 bg-blue-600 rounded-full inline-block" />
+              สรุปผลงานรายหน่วยงาน
+              <span className="text-sm font-normal text-gray-400">(คลิกที่ตัวเลขเพื่อกรอง)</span>
+              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                {peas.length} หน่วยงาน
+              </span>
+            </h2>
+            <button
+              onClick={() => handleScreenshot(summaryTableRef)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border bg-white text-gray-600 border-gray-300 hover:bg-blue-50 transition-colors"
+              title="บันทึกภาพ"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              บันทึกภาพ
+            </button>
+          </div>
+
+          {/* สถานะข้อมูล */}
+          {dataStatus && (
+            <div className="mb-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 flex items-center gap-2 flex-wrap">
+              <span className="font-semibold">สถานะข้อมูล:</span>
+              <span>{dataStatus}</span>
+              {liff.isAdmin && (
+                <button
+                  onClick={() => { setStatusDraft(dataStatus); setEditingStatus(true); }}
+                  className="ml-auto text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1"
+                >
+                  <Settings className="w-3 h-3" /> แก้ไข
+                </button>
+              )}
+            </div>
+          )}
+          {!dataStatus && liff.isAdmin && (
+            <div className="mb-3">
+              <button
+                onClick={() => { setStatusDraft(''); setEditingStatus(true); }}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors"
+              >
+                <Settings className="w-3 h-3" /> ระบุสถานะข้อมูล
+              </button>
+            </div>
+          )}
+
+          {/* Modal แก้ไขสถานะข้อมูล */}
+          {editingStatus && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setEditingStatus(false)}>
+              <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800">ระบุสถานะข้อมูล</h3>
+                <input
+                  type="text"
+                  value={statusDraft}
+                  onChange={(e) => setStatusDraft(e.target.value)}
+                  placeholder="เช่น update สะสม ม.ค.-พ.ค.2569"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setEditingStatus(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
+                  <button onClick={handleSaveDataStatus} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">บันทึก</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <PEASummaryTable
             summaries={summaries}
             activePEA={effectivePEA}
@@ -289,6 +413,7 @@ export default function DashboardContainer() {
             selectedPEAs={selectedPEAs.length > 0 ? selectedPEAs : peas}
             onItemSelect={handleItemSelect}
             highlightedItem={highlightedItem}
+            allData={activeData}
           />
         </section>
 
@@ -301,12 +426,20 @@ export default function DashboardContainer() {
           />
         </section>
 
-        <section>
+        <section ref={dataTableSectionRef}>
           <div className="flex flex-col gap-3 mb-3">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
                 <span className="w-1 h-5 bg-blue-600 rounded-full inline-block" />
                 ตารางข้อมูลรายละเอียด
+                <button
+                  onClick={() => handleScreenshot(dataTableSectionRef)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium border bg-white text-gray-600 border-gray-300 hover:bg-blue-50 transition-colors"
+                  title="บันทึกภาพ"
+                >
+                  <Camera className="w-3 h-3" />
+                  บันทึกภาพ
+                </button>
               </h2>
               {/* Quick Filters */}
               <div className="flex flex-wrap items-center gap-2">
