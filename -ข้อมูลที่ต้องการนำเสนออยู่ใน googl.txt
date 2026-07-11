@@ -1,0 +1,72 @@
+-ข้อมูลที่ต้องการนำเสนออยู่ใน google sheet id : 1e9vstSg-LERVhvJleJPlJFpMsvJBWWndTApft_Mj0lmFitXilaBx8NId
+
+-ชื่อชีต "ชีต3"
+
+-คอลัมน์ที่ต้องการนำเสนอคือคอลัมน์ A-H
+
+-โดยในแต่ละแถวจะมีอยู่ 4 หน่วยงาน ตามคอลัมน์ C ซึ่งจะวนซ้ำไปเรื่อยๆเมื่อครบ 4 แถว
+
+ถ้าต้องการทำเป็นแดชบอร์ดและกราฟแสดงข้อมูลแบบ interactive ได้
+
+และมีการ์ดสรุปว่า แต่ละ PEA (ตามคอลัมน์C) มีผลงานเป็นอย่างไรเช่น "จำนวนข้อทั้งหมด" "ผ่านเกณฑ์ 5 คะแนน" "ไม่ผ่านเกณฑ์ 5 คะแนน"
+
+และอาจจะมี ตัวกรองให้เลือกแต่ละ PEA ได้
+
+และอยากให้มีช่องให้ผู้ใช้งานลงหมายเตุได้ โดยเมื่อลงแล้วไปจัดเก็บไว้ที่คอลัมน์ K
+
+ลองวิเคราะห์ออกมาถ้าจุดไหนไม่มั่นใจให้ถามก่อน 
+
+จากนั้นให้สร้างเว็บแอป 
+"สร้าง Web App ด้วย React 18, Vite, Tailwind CSS, Lucide React Icons. ห้ามใช้ CSS Modules หรือ Styled-components"
+"เมื่อคลิกปุ่มให้แสดง Toast notification (ใช้ library sonner หรือ `react-hot-toast") และต้องมี Loading state ทุกครั้งที่เรียกข้อมูล"
+"แยก Component ออกเป็นไฟล์ย่อยๆ ตามหน้าที่ (Presentational Components vs Container Components) และอธิบายวิธีรันโปรเจกต์ในแต่ละขั้นตอน"
+"ก่อนส่งโค้ดสุดท้าย กรุณาตรวจสอบตัวเองว่าไม่มี Undefined variable, ไม่มี Missing closing tags, และตรวจสอบว่า Props ถูกส่งผ่านอย่างถูกต้องหรือไม่"
+.............
+
+ให้คุณศึกษาโปรเจคนี้แล้วดำเนินการตามนี้
+1.ต้องการเปลี่ยนแหล่งฐานข้อมูลเป็น 
+-ข้อมูลที่ต้องการนำเสนออยู่ใน google sheet id : 1P90pDKqos8bchlJRpr7GiQQJPEXdMIZvBps5BDVO1zE
+-ชื่อชีต "LMS"
+
+2.เพิ่มคอลัมน์ N เป็นตัวควบคุม จัดกลุ่มหรือ dropdown list
+3.เพิ่มการแสดงข้อมูลคอลัมน์ L ในเว็บแอปด้วย
+4.จากเดิมมี 4 PEA เพิ่มเป็น 61 รายการตามคอลัมน์ C
+5.ในส่วนของการ์ดเทียบข้อมูลจากเดิมมี 4 PEA ("กฟจ.นพ" , "กฟส.ธพ." , "กฟส.นก." , "กฟส.บพง.") เราจะเทียบยังไงให้ครอบคลุม หรือจะเทียบตาม Group ของคอลัมน์N แต่ส่วนที่ผม monitor บ่อยๆ ก็ยังเป็น 4 PEA ("กฟจ.นพ" , "กฟส.ธพ." , "กฟส.นก." , "กฟส.บพง.")  นี้อยู่ครับ
+6.ในส่วนของการ์ดเทียบรายละเอียดที่สามารถเลือกเป็น ข้อ ได้นั้น อยากให้มีปุ่ม next เพื่อง่ายต่อการใช้งาน
+.............
+สร้างหน้าล็อกอิน พร้อม sweet alert ระหว่างรอ และให้ตั้งค่า User:admin , Password:1129 ได้ผ่านชีตชื่อ "Config" เพื่อให้สามารถเปลี่ยนแปลงรหัสผ่านได้ในภายหลัง หรือมีวิธีอื่นแนะนำก็บอกมาได้
+...
+
+อัปเดต useSheetData hook รองรับ Group filter + 4 PEA Monitor
+
+สร้าง GroupFilter component (dropdown)
+
+อัปเดต PEAFilter รองรับ 61 PEA + monitor toggle
+
+อัปเดต PEASummaryCards รองรับ dynamic colors สำหรับ 61 PEA
+
+อัปเดต ItemComparison: รองรับ 61 PEA + เพิ่มปุ่ม Next/Prev
+
+อัปเดต DashboardContainer รวมทุกส่วนเข้าด้วยกัน
+
+อัปเดต COLUMN_MAP + filterValidRows 61 PEA
+
+อัปเดต useSheetData hook
+
+สร้าง GroupFilter component
+
+อัปเดต PEAFilter รองรับ dropdown
+
+อัปเดต PEASummaryCards dynamic colors
+
+อัปเดต ComparisonChart scrollable
+
+อัปเดต ItemComparison: รองรับ 61 PEA + ปุ่ม Next/Prev
+
+อัปเดต DataTable แสดง Group + คิดเป็น%
+
+อัปเดต DashboardContainer รวมทุกส่วน
+
+อัปเดต DashboardContainer รวมทุกส่วน + Build ตรวจสอบ
+
+...........
