@@ -47,6 +47,7 @@ export default function DashboardContainer() {
   const [statusDraft, setStatusDraft] = useState('');
   const [showComparison, setShowComparison] = useState(false);
   const summaryTableRef = useRef(null);
+  const scoreTableRef = useRef(null);
   const dataTableSectionRef = useRef(null);
 
   useEffect(() => {
@@ -439,7 +440,7 @@ export default function DashboardContainer() {
           />
         </section>
 
-        <section>
+        <section ref={scoreTableRef}>
           <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
             <span className="w-1 h-5 bg-blue-600 rounded-full inline-block" />
             ตารางสรุปคะแนน KPIs
@@ -451,6 +452,7 @@ export default function DashboardContainer() {
             onItemSelect={handleItemSelect}
             highlightedItem={highlightedItem}
             allData={activeData}
+            onScreenshot={() => handleScreenshot(scoreTableRef)}
           />
         </section>
 
