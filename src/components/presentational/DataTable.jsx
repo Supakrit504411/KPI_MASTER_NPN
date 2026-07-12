@@ -1,13 +1,29 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { CheckCircle2, XCircle, Clock, X, MessageSquare, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function DataTable({ data, notes, onNoteChange, onSaveNote, highlightedItem, onItemSelect, highlightedItemFromComparison, lineProfile, canEditNotes = true }) {
   const [selectedRow, setSelectedRow] = useState(null);
   const [onlyNoted, setOnlyNoted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hoveredRow, setHoveredRow] = useState(null);
+  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
+  const hoverTimerRef = useRef(null);
   const tbodyRef = useRef(null);
   const containerRef = useRef(null);
   const highlightTimeoutRef = useRef(null);
+
+  const handleMouseEnter = useCallback((e, row) => {
+    hoverTimerRef.current = setTimeout(() => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setHoverPos({ x: rect.left + rect.width / 2, y: rect.top });
+      setHoveredRow(row);
+    }, 400);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoveredRow(null);
+  }, []);
 
   // หมายเหตุที่มีผลจริงของแถว = ค่าที่แก้ในเครื่อง (localStorage) ถ้าไม่มีใช้ค่าจากชีต (คอลัมน์ K)
   const getNoteFor = (row) => String(notes[row._rowIndex] ?? row.note ?? '').trim();
@@ -147,7 +163,9 @@ export default function DataTable({ data, notes, onNoteChange, onSaveNote, highl
               {filteredData.map((row, index) => (
                 <tr
                   key={row._rowIndex ?? `${row.pea}-${row.item}-${index}`}
-                  onClick={() => handleRowClick(row)}
+                  onClick={() => { handleMouseLeave(); handleRowClick(row); }}
+                  onMouseEnter={(e) => handleMouseEnter(e, row)}
+                  onMouseLeave={handleMouseLeave}
                   className={getRowClass(index, row)}
                 >
                   <td className="px-2 py-2.5 text-center text-gray-400 text-xs">{index + 1}</td>
@@ -238,6 +256,10 @@ export default function DataTable({ data, notes, onNoteChange, onSaveNote, highl
           แสดง {filteredData.length} รายการ | คลิกแถวเพื่อดูรายละเอียด / เพิ่มหมายเหตุ | แถวที่เลือกจะไฮไลต์ใน ItemComparison | กดข้อใน ItemComparison เพื่อไฮไลต์ในตารางนี้ | กดข้อที่ในตารางสรุปคะแนนเพื่อไฮไลต์
         </div>
       </div>
+
+      {hoveredRow && !selectedRow && (
+        <HoverPreview row={hoveredRow} pos={hoverPos} note={getNoteFor(hoveredRow)} />
+      )}
 
       {selectedRow && (
         <DetailModal
@@ -457,6 +479,61 @@ function StatBox({ label, value }) {
     <div className="bg-gray-50 rounded-lg p-3 text-center">
       <p className="text-[11px] text-gray-500 mb-0.5">{label}</p>
       <p className="text-lg font-semibold text-gray-700">{value ?? '-'}</p>
+    </div>
+  );
+}
+
+function HoverPreview({ row, pos, note }) {
+  const top = Math.max(8, pos.y - 220);
+  const left = Math.min(pos.x - 180, window.innerWidth - 380);
+
+  return (
+    <div
+      className="fixed z-[60] pointer-events-none animate-in fade-in duration-150"
+      style={{ top, left: Math.max(8, left) }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-[360px] overflow-hidden">
+        <div className="bg-gradient-to-r from-gray-700 to-gray-600 px-4 py-2.5 flex items-center justify-between">
+          <span className="text-white text-sm font-semibold">ข้อ {row.item}</span>
+          <span className="text-white/70 text-xs">{row.pea}</span>
+        </div>
+        <div className="px-4 py-3 space-y-2.5">
+          <p className="text-xs text-gray-600 leading-relaxed">{row.description}</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
+              <p className="text-[10px] text-gray-400">เป้าหมาย</p>
+              <p className="text-sm font-bold text-gray-700">{row.targetYearly ?? '-'}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
+              <p className="text-[10px] text-gray-400">ผลดำเนินงาน</p>
+              <p className="text-sm font-bold text-gray-700">{row.result ?? '-'}</p>
+            </div>
+            <div className={`rounded-lg px-2 py-1.5 text-center ${
+              row.status === 'passed' ? 'bg-emerald-50' : row.status === 'failed' ? 'bg-red-50' : 'bg-amber-50'
+            }`}>
+              <p className="text-[10px] text-gray-400">คะแนน</p>
+              <p className={`text-sm font-bold ${
+                row.status === 'passed' ? 'text-emerald-600' : row.status === 'failed' ? 'text-red-600' : 'text-amber-600'
+              }`}>
+                {row.status === 'pending' ? 'รอผล' : row.score.toFixed(2)}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>น้ำหนัก: {row.weight} | สุทธิ: {row.scoreNet.toFixed(2)}</span>
+            <span>{row.percentage > 0 ? `${row.percentage}%` : '-'}</span>
+          </div>
+          {note && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <p className="text-[10px] text-amber-600 font-semibold mb-0.5">หมายเหตุ</p>
+              <p className="text-xs text-amber-800 line-clamp-3">{note}</p>
+            </div>
+          )}
+        </div>
+        <div className="bg-gray-50 px-4 py-1.5 text-center border-t border-gray-100">
+          <span className="text-[10px] text-gray-400">คลิกเพื่อเปิดรายละเอียด / แก้หมายเหตุ</span>
+        </div>
+      </div>
     </div>
   );
 }

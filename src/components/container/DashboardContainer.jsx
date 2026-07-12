@@ -73,10 +73,22 @@ export default function DashboardContainer() {
     }
     try {
       const { toPng } = await import('html-to-image');
-      const dataUrl = await toPng(ref.current, {
+      const el = ref.current;
+      const scrollContainers = el.querySelectorAll('[class*="max-h-"]');
+      const origStyles = [];
+      scrollContainers.forEach((sc) => {
+        origStyles.push({ el: sc, maxHeight: sc.style.maxHeight, overflow: sc.style.overflow });
+        sc.style.maxHeight = 'none';
+        sc.style.overflow = 'visible';
+      });
+      const dataUrl = await toPng(el, {
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         cacheBust: true,
+      });
+      origStyles.forEach(({ el: s, maxHeight, overflow }) => {
+        s.style.maxHeight = maxHeight;
+        s.style.overflow = overflow;
       });
       const link = document.createElement('a');
       link.download = `pea-dashboard-${new Date().toISOString().slice(0, 10)}.png`;
