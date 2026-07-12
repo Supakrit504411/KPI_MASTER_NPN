@@ -11,10 +11,7 @@ export default function LoadingSpinner({ message = 'กำลังโหลด�
         <div className="w-16 h-16 border-4 border-blue-200 rounded-full" />
         <div className="absolute top-0 left-0 w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
-      <div className="flex items-center gap-2 mt-4 text-gray-600">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        <p className="text-sm font-medium">{message}</p>
-      </div>
+      <p className="mt-4 text-sm font-medium text-gray-600">{message}</p>
     </div>
   );
 }

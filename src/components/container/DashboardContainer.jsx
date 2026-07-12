@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import useSheetData from '../../hooks/useSheetData';
 import useNotes from '../../hooks/useNotes';
 import useLiff from '../../hooks/useLiff';
@@ -16,7 +16,7 @@ import ErrorMessage from '../presentational/ErrorMessage';
 import SummaryScoreTable from '../presentational/SummaryScoreTable';
 import { getUniqueItems } from '../../utils/parseCSV';
 import { getDataStatus, updateDataStatus } from '../../services/googleSheet';
-import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound, Filter, ChevronDown, Check, Search, X, ChevronLeft, ChevronRight, ListChecks } from 'lucide-react';
+import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound, Filter, ChevronDown, Check, Search, X, ChevronLeft, ChevronRight, ListChecks, Eye, EyeOff } from 'lucide-react';
 
 export default function DashboardContainer() {
   const {
@@ -45,6 +45,7 @@ export default function DashboardContainer() {
   const [dataStatus, setDataStatus] = useState('');
   const [editingStatus, setEditingStatus] = useState(false);
   const [statusDraft, setStatusDraft] = useState('');
+  const [showComparison, setShowComparison] = useState(false);
   const summaryTableRef = useRef(null);
   const dataTableSectionRef = useRef(null);
 
@@ -74,22 +75,49 @@ export default function DashboardContainer() {
     try {
       const { toPng } = await import('html-to-image');
       const el = ref.current;
-      const scrollContainers = el.querySelectorAll('[class*="max-h-"]');
-      const origStyles = [];
-      scrollContainers.forEach((sc) => {
-        origStyles.push({ el: sc, maxHeight: sc.style.maxHeight, overflow: sc.style.overflow });
+
+      // unlock both vertical (max-h-*) and horizontal (overflow-x-auto) scroll containers
+      const scrollEls = el.querySelectorAll('[class*="max-h-"], [class*="overflow-x-auto"], [class*="overflow-auto"]');
+      const saved = [];
+      scrollEls.forEach((sc) => {
+        saved.push({
+          el: sc,
+          maxHeight: sc.style.maxHeight,
+          overflow: sc.style.overflow,
+          overflowX: sc.style.overflowX,
+          overflowY: sc.style.overflowY,
+          width: sc.style.width,
+        });
         sc.style.maxHeight = 'none';
         sc.style.overflow = 'visible';
+        sc.style.overflowX = 'visible';
+        sc.style.overflowY = 'visible';
+        sc.style.width = sc.scrollWidth + 'px';
       });
+
+      // wait one frame for layout to reflow
+      await new Promise((r) => requestAnimationFrame(r));
+
+      const fullW = el.scrollWidth;
+      const fullH = el.scrollHeight;
+
       const dataUrl = await toPng(el, {
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         cacheBust: true,
+        width: fullW,
+        height: fullH,
+        style: { width: fullW + 'px', height: fullH + 'px', overflow: 'visible' },
       });
-      origStyles.forEach(({ el: s, maxHeight, overflow }) => {
+
+      saved.forEach(({ el: s, maxHeight, overflow, overflowX, overflowY, width }) => {
         s.style.maxHeight = maxHeight;
         s.style.overflow = overflow;
+        s.style.overflowX = overflowX;
+        s.style.overflowY = overflowY;
+        s.style.width = width;
       });
+
       const link = document.createElement('a');
       link.download = `pea-dashboard-${new Date().toISOString().slice(0, 10)}.png`;
       link.href = dataUrl;
@@ -410,12 +438,28 @@ export default function DashboardContainer() {
         </section>
 
         <section>
-          <ItemComparison
-            rawData={activeData}
-            items={items}
-            highlightedItem={highlightedItem}
-            onSelectedItemChange={handleItemComparisonSelect}
-          />
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+              <span className="w-1 h-5 bg-blue-600 rounded-full inline-block" />
+              เปรียบเทียบคะแนนรายข้อ
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowComparison((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white text-gray-600 border-gray-300 hover:bg-blue-50 transition-colors"
+            >
+              {showComparison ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {showComparison ? 'ซ่อน' : 'แสดง'}
+            </button>
+          </div>
+          {showComparison && (
+            <ItemComparison
+              rawData={activeData}
+              items={items}
+              highlightedItem={highlightedItem}
+              onSelectedItemChange={handleItemComparisonSelect}
+            />
+          )}
         </section>
 
         <section ref={dataTableSectionRef}>
@@ -794,6 +838,122 @@ function ItemNavigator({ items, highlightedItem, onSelectItem }) {
   );
 }
 
+function NeuralNetBackground() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animId;
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const N = 70;
+    const particles = Array.from({ length: N }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 2 + 0.8,
+      pulse: Math.random() * Math.PI * 2,
+    }));
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // subtle grid
+      ctx.strokeStyle = 'rgba(50,120,255,0.06)';
+      ctx.lineWidth = 0.5;
+      const gs = 60;
+      for (let x = 0; x < canvas.width; x += gs) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += gs) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+      }
+
+      const t = Date.now() * 0.001;
+
+      // connections
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < 110) {
+            const alpha = (1 - d / 110) * 0.25;
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(80,180,255,${alpha})`;
+            ctx.lineWidth = 0.6;
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // nodes
+      particles.forEach((p) => {
+        p.pulse += 0.03;
+        const glow = 0.4 + Math.sin(p.pulse) * 0.3;
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+        grad.addColorStop(0, `rgba(100,200,255,${glow})`);
+        grad.addColorStop(1, 'rgba(100,200,255,0)');
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(150,220,255,${glow + 0.2})`;
+        ctx.fill();
+
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+      });
+
+      // floating orbs
+      for (let i = 0; i < 3; i++) {
+        const ox = canvas.width * (0.2 + i * 0.3) + Math.sin(t * 0.3 + i * 2) * 40;
+        const oy = canvas.height * 0.5 + Math.cos(t * 0.2 + i * 1.5) * 60;
+        const og = ctx.createRadialGradient(ox, oy, 0, ox, oy, 80);
+        const colors = ['rgba(30,80,255,0.08)', 'rgba(80,0,200,0.07)', 'rgba(0,150,255,0.07)'];
+        og.addColorStop(0, colors[i]);
+        og.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(ox, oy, 80, 0, Math.PI * 2);
+        ctx.fillStyle = og;
+        ctx.fill();
+      }
+
+      animId = requestAnimationFrame(draw);
+    };
+
+    draw();
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full"
+      style={{ display: 'block' }}
+    />
+  );
+}
+
 function LoginScreen({ liff }) {
   const [mode, setMode] = useState('line');
   const [username, setUsername] = useState('');
@@ -813,78 +973,97 @@ function LoginScreen({ liff }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-800 to-blue-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center space-y-5">
-        <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
-          <LogIn className="w-8 h-8 text-blue-600" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-1">PEA Dashboard</h1>
-          <p className="text-sm text-gray-500">แดชบอร์ดสรุปผลการประเมิน KPI</p>
-        </div>
+    <div
+      className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, #020818 0%, #0a1628 40%, #0d1b3e 70%, #060b1a 100%)' }}
+    >
+      <NeuralNetBackground />
 
-        {mode === 'line' ? (
-          <>
-            <p className="text-sm text-gray-600">กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
-            <button
-              onClick={liff.login}
-              className="w-full flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34d] text-white font-semibold py-3 px-6 rounded-xl transition-colors text-base"
-            >
-              <LogIn className="w-5 h-5" />
-              เข้าสู่ระบบด้วย LINE
-            </button>
-            <button
-              onClick={() => setMode('password')}
-              className="w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 text-sm py-2 transition-colors"
-            >
-              <KeyRound className="w-4 h-4" />
-              เข้าสู่ระบบด้วยรหัสผ่าน
-            </button>
-          </>
-        ) : (
-          <form onSubmit={handlePasswordLogin} className="space-y-3 text-left">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                autoFocus
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                required
-              />
-            </div>
-            {error && <p className="text-sm text-red-600 text-center">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 px-6 rounded-xl transition-colors text-sm"
-            >
-              <KeyRound className="w-4 h-4" />
-              {loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode('line'); setError(''); }}
-              className="w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 text-sm py-2 transition-colors"
-            >
-              <LogIn className="w-4 h-4" />
-              เข้าสู่ระบบด้วย LINE แทน
-            </button>
-          </form>
-        )}
+      {/* card */}
+      <div className="relative z-10 w-full max-w-sm">
+        {/* glow ring behind card */}
+        <div className="absolute -inset-1 rounded-3xl blur-xl opacity-30"
+          style={{ background: 'linear-gradient(135deg,#3b82f6,#6366f1,#06b6d4)' }} />
 
-        <p className="text-xs text-gray-400">ระบบจะเก็บประวัติการเข้าใช้งานและการแก้ไขข้อมูล</p>
+        <div className="relative bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl p-8 text-center space-y-5">
+          {/* logo */}
+          <div className="relative mx-auto w-16 h-16">
+            <div className="absolute inset-0 rounded-full blur-md opacity-60"
+              style={{ background: 'linear-gradient(135deg,#3b82f6,#06b6d4)' }} />
+            <div className="relative w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg,#1d4ed8,#0891b2)' }}>
+              <LogIn className="w-8 h-8 text-white" />
+            </div>
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-1">PEA Dashboard</h1>
+            <p className="text-sm text-blue-200/80">แดชบอร์ดสรุปผลการประเมิน KPI</p>
+          </div>
+
+          {mode === 'line' ? (
+            <>
+              <p className="text-sm text-blue-100/70">กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+              <button
+                onClick={liff.login}
+                className="w-full flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34d] text-white font-semibold py-3 px-6 rounded-xl transition-colors text-base shadow-lg"
+              >
+                <LogIn className="w-5 h-5" />
+                เข้าสู่ระบบด้วย LINE
+              </button>
+              <button
+                onClick={() => setMode('password')}
+                className="w-full flex items-center justify-center gap-2 text-blue-200/70 hover:text-white text-sm py-2 transition-colors"
+              >
+                <KeyRound className="w-4 h-4" />
+                เข้าสู่ระบบด้วยรหัสผ่าน
+              </button>
+            </>
+          ) : (
+            <form onSubmit={handlePasswordLogin} className="space-y-3 text-left">
+              <div>
+                <label className="block text-xs font-medium text-blue-200/80 mb-1">Username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-200/80 mb-1">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  required
+                />
+              </div>
+              {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold py-3 px-6 rounded-xl transition-colors text-sm shadow-lg"
+              >
+                <KeyRound className="w-4 h-4" />
+                {loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('line'); setError(''); }}
+                className="w-full flex items-center justify-center gap-2 text-blue-200/70 hover:text-white text-sm py-2 transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                เข้าสู่ระบบด้วย LINE แทน
+              </button>
+            </form>
+          )}
+
+          <p className="text-xs text-blue-200/40">ระบบจะเก็บประวัติการเข้าใช้งานและการแก้ไขข้อมูล</p>
+        </div>
       </div>
     </div>
   );
