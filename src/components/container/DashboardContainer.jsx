@@ -16,7 +16,7 @@ import ErrorMessage from '../presentational/ErrorMessage';
 import SummaryScoreTable from '../presentational/SummaryScoreTable';
 import { getUniqueItems } from '../../utils/parseCSV';
 import { getDataStatus, updateDataStatus } from '../../services/googleSheet';
-import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound, Filter, ChevronDown, Check, Search, X } from 'lucide-react';
+import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound, Filter, ChevronDown, Check, Search, X, ChevronLeft, ChevronRight, ListChecks } from 'lucide-react';
 
 export default function DashboardContainer() {
   const {
@@ -72,23 +72,15 @@ export default function DashboardContainer() {
       return;
     }
     try {
-      const el = ref.current;
-      const canvas = await import('html2canvas').then((mod) => {
-        const fn = mod.default || mod;
-        return fn(el, {
-          useCORS: true,
-          allowTaint: true,
-          scale: 2,
-          backgroundColor: '#ffffff',
-          scrollX: 0,
-          scrollY: -window.scrollY,
-          windowWidth: el.scrollWidth,
-          windowHeight: el.scrollHeight,
-        });
+      const { toPng } = await import('html-to-image');
+      const dataUrl = await toPng(ref.current, {
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
       });
       const link = document.createElement('a');
       link.download = `pea-dashboard-${new Date().toISOString().slice(0, 10)}.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.href = dataUrl;
       link.click();
     } catch (err) {
       console.error('Screenshot error:', err);
@@ -508,6 +500,12 @@ export default function DashboardContainer() {
                 handleSelectPEA(null);
               }}
             />
+            {/* ตัวกรอง "ข้อ" + ปุ่มก่อนหน้า/ถัดไป */}
+            <ItemNavigator
+              items={items}
+              highlightedItem={highlightedItem}
+              onSelectItem={setHighlightedItem}
+            />
           </div>
 
           <DataTable
@@ -628,6 +626,157 @@ function DataTablePEADropdown({ peas, selectedPEAs, onSelectPEA }) {
             )}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function ItemNavigator({ items, highlightedItem, onSelectItem }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const currentIndex = highlightedItem ? items.indexOf(highlightedItem) : -1;
+
+  const goPrev = () => {
+    if (items.length === 0) return;
+    if (currentIndex <= 0) {
+      onSelectItem(items[items.length - 1]);
+    } else {
+      onSelectItem(items[currentIndex - 1]);
+    }
+  };
+
+  const goNext = () => {
+    if (items.length === 0) return;
+    if (currentIndex === -1 || currentIndex >= items.length - 1) {
+      onSelectItem(items[0]);
+    } else {
+      onSelectItem(items[currentIndex + 1]);
+    }
+  };
+
+  const filtered = search.trim()
+    ? items.filter((it) => it.toLowerCase().includes(search.trim().toLowerCase()))
+    : items;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-1.5 text-gray-600 text-xs font-medium">
+        <ListChecks className="w-3.5 h-3.5" />
+        <span>ข้อ:</span>
+      </div>
+
+      <button
+        type="button"
+        onClick={goPrev}
+        disabled={items.length === 0}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-white text-gray-600 border-gray-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        title="ข้อก่อนหน้า"
+      >
+        <ChevronLeft className="w-3.5 h-3.5" />
+        ก่อนหน้า
+      </button>
+
+      <div ref={containerRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all min-w-[110px] justify-between
+            ${open
+              ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100'
+              : highlightedItem
+                ? 'bg-blue-50 text-blue-700 border-blue-300'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+        >
+          <span className="truncate">
+            {highlightedItem ? `ข้อ ${highlightedItem}` : `ทั้งหมด (${items.length})`}
+          </span>
+          <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
+        </button>
+
+        {open && (
+          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-56">
+            <div className="px-2 py-2 border-b border-gray-100">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="ค้นหาข้อ..."
+                  className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { onSelectItem(null); setOpen(false); setSearch(''); }}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs border-b border-gray-100
+                ${!highlightedItem ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'}`}
+            >
+              <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border flex-shrink-0
+                ${!highlightedItem ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                {!highlightedItem && <Check className="w-2.5 h-2.5 text-white" />}
+              </span>
+              ทั้งหมด ({items.length})
+            </button>
+            <div className="max-h-60 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <p className="px-3 py-3 text-xs text-gray-400 text-center">ไม่พบข้อ</p>
+              ) : (
+                filtered.map((it) => {
+                  const isSelected = it === highlightedItem;
+                  return (
+                    <button
+                      key={it}
+                      type="button"
+                      onClick={() => { onSelectItem(it); setOpen(false); setSearch(''); }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors
+                        ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'}`}
+                    >
+                      <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border flex-shrink-0
+                        ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                        {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                      </span>
+                      <span className="truncate">ข้อ {it}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={goNext}
+        disabled={items.length === 0}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-white text-gray-600 border-gray-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        title="ข้อถัดไป"
+      >
+        ถัดไป
+        <ChevronRight className="w-3.5 h-3.5" />
+      </button>
+
+      {highlightedItem && currentIndex !== -1 && (
+        <span className="text-xs text-gray-400">
+          {currentIndex + 1} / {items.length}
+        </span>
       )}
     </div>
   );
