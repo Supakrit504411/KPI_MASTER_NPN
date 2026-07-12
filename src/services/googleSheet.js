@@ -133,6 +133,22 @@ export async function updateNote(row, note, meta = {}) {
   return { success: true, local: false, action: result?.action };
 }
 
+export async function passwordLogin(username, password) {
+  const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL;
+  if (!scriptUrl) return { allowed: false, reason: 'ระบบยังไม่พร้อม' };
+  const ip = await getClientIP();
+  try {
+    const res = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'passwordLogin', username, password, ip, userAgent: navigator.userAgent }),
+    });
+    return await res.json();
+  } catch {
+    return { allowed: false, reason: 'เชื่อมต่อระบบไม่ได้' };
+  }
+}
+
 export async function checkAccess(lineUserId) {
   const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL;
   if (!scriptUrl) return { allowed: true, role: 'admin' };

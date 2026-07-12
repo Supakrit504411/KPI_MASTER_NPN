@@ -66,6 +66,20 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
 
+    // ล็อกอินด้วย username/password
+    if (body.action === 'passwordLogin') {
+      var ss = SpreadsheetApp.openById(NOTE_API_SPREADSHEET_ID);
+      var user = String(body.username || '').trim();
+      var pass = String(body.password || '').trim();
+      var result = noteApi_checkPassword(ss, user, pass);
+      if (result.success && result.allowed) {
+        noteApi_appendAccessLog(ss, { user: user + ' (password)', ip: body.ip || '', userAgent: body.userAgent || '' });
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ตรวจสอบสิทธิ์เข้าใช้งาน
     if (body.action === 'checkAccess') {
       var ss = SpreadsheetApp.openById(NOTE_API_SPREADSHEET_ID);
@@ -228,27 +242,60 @@ function noteApi_checkUserAccess(ss, lineUserId) {
   if (!lineUserId) return { success: true, allowed: false, reason: 'ไม่พบ LINE User ID' };
   if (lineUserId === ADMIN_LINE_USER_ID) return { success: true, allowed: true, role: 'admin' };
 
+  // เปิดให้ทุกคนเข้าได้ ยกเว้นคนที่ถูก Block
   var sheet = ss.getSheetByName(NOTE_API_USERS_SHEET);
   if (!sheet) {
     sheet = ss.insertSheet(NOTE_API_USERS_SHEET);
-    sheet.appendRow(['LINE User ID', 'ชื่อ', 'สถานะ', 'วันที่เพิ่ม']);
-    sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#e8f0fe');
+    sheet.appendRow(['LINE User ID', 'ชื่อ', 'สถานะ', 'วันที่เพิ่ม', 'หมายเหตุ']);
+    sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#e8f0fe');
     sheet.setFrozenRows(1);
-    sheet.appendRow([ADMIN_LINE_USER_ID, 'Admin', 'Active', Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss')]);
+    return { success: true, allowed: true, role: 'user' };
   }
 
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === lineUserId) {
       var status = String(data[i][2]).trim();
-      if (status === 'Active') {
-        return { success: true, allowed: true, role: 'user' };
-      } else {
-        return { success: true, allowed: false, reason: 'บัญชีถูกระงับ (Blocked)' };
+      if (status === 'Blocked') {
+        return { success: true, allowed: false, reason: 'บัญชีถูกระงับโดยผู้ดูแลระบบ' };
       }
+      return { success: true, allowed: true, role: 'user' };
     }
   }
-  return { success: true, allowed: false, reason: 'ไม่มีสิทธิ์เข้าใช้งาน กรุณาติดต่อผู้ดูแลระบบ' };
+  // ไม่อยู่ในรายชื่อ = อนุญาตเข้าได้ (ไม่ต้องเพิ่มก่อน)
+  return { success: true, allowed: true, role: 'user' };
+}
+
+/**
+ * ตรวจสอบ username/password จากชีต PasswordUsers
+ * คอลัมน์: A=username, B=password, C=ชื่อแสดง, D=สถานะ(Active/Blocked), E=canEditNotes(yes/no)
+ */
+function noteApi_checkPassword(ss, username, password) {
+  if (!username || !password) return { success: true, allowed: false, reason: 'กรุณากรอก username และ password' };
+
+  var sheet = ss.getSheetByName('PasswordUsers');
+  if (!sheet) {
+    sheet = ss.insertSheet('PasswordUsers');
+    sheet.appendRow(['username', 'password', 'ชื่อแสดง', 'สถานะ', 'แก้ไขหมายเหตุได้']);
+    sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#e8f0fe');
+    sheet.setFrozenRows(1);
+    sheet.appendRow(['admin', '123', 'ผู้ดูแลระบบ', 'Active', 'no']);
+    return { success: true, allowed: false, reason: 'username หรือ password ไม่ถูกต้อง' };
+  }
+
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === username && String(data[i][1]).trim() === password) {
+      var status = String(data[i][3]).trim();
+      if (status === 'Blocked') {
+        return { success: true, allowed: false, reason: 'บัญชีถูกระงับ' };
+      }
+      var displayName = String(data[i][2] || username);
+      var canEdit = String(data[i][4] || 'no').trim().toLowerCase() === 'yes';
+      return { success: true, allowed: true, role: 'password_user', displayName: displayName, canEditNotes: canEdit };
+    }
+  }
+  return { success: true, allowed: false, reason: 'username หรือ password ไม่ถูกต้อง' };
 }
 
 /**

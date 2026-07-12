@@ -16,7 +16,7 @@ import ErrorMessage from '../presentational/ErrorMessage';
 import SummaryScoreTable from '../presentational/SummaryScoreTable';
 import { getUniqueItems } from '../../utils/parseCSV';
 import { getDataStatus, updateDataStatus } from '../../services/googleSheet';
-import { Monitor, Layers, LogIn, ShieldX, Camera, Settings } from 'lucide-react';
+import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 export default function DashboardContainer() {
@@ -181,28 +181,7 @@ export default function DashboardContainer() {
   }
 
   if (!liff.loggedIn) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-800 to-blue-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center space-y-6">
-          <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
-            <LogIn className="w-8 h-8 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-1">PEA Dashboard</h1>
-            <p className="text-sm text-gray-500">แดชบอร์ดสรุปผลการประเมิน KPI</p>
-          </div>
-          <p className="text-sm text-gray-600">กรุณาเข้าสู่ระบบด้วย LINE เพื่อใช้งาน</p>
-          <button
-            onClick={liff.login}
-            className="w-full flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34d] text-white font-semibold py-3 px-6 rounded-xl transition-colors text-base"
-          >
-            <LogIn className="w-5 h-5" />
-            เข้าสู่ระบบด้วย LINE
-          </button>
-          <p className="text-xs text-gray-400">ระบบจะเก็บประวัติการเข้าใช้งานและการแก้ไขข้อมูล</p>
-        </div>
-      </div>
-    );
+    return <LoginScreen liff={liff} />;
   }
 
   if (isLoading) {
@@ -523,6 +502,7 @@ export default function DashboardContainer() {
             onItemSelect={handleItemSelect}
             highlightedItemFromComparison={highlightedItem}
             lineProfile={liff.loggedIn ? liff.profile : null}
+            canEditNotes={liff.canEditNotes}
           />
         </section>
       </main>
@@ -531,6 +511,102 @@ export default function DashboardContainer() {
         PEA Dashboard | ข้อมูลจาก Google Sheet (LMS) | อัปเดตล่าสุด:{' '}
         {new Date().toLocaleDateString('th-TH')}
       </footer>
+    </div>
+  );
+}
+
+function LoginScreen({ liff }) {
+  const [mode, setMode] = useState('line'); // 'line' | 'password'
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handlePasswordLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    const result = await liff.passwordLogin(username, password);
+    setLoading(false);
+    if (!result.success) {
+      setError(result.reason);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-800 to-blue-600 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center space-y-5">
+        <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+          <LogIn className="w-8 h-8 text-blue-600" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-1">PEA Dashboard</h1>
+          <p className="text-sm text-gray-500">แดชบอร์ดสรุปผลการประเมิน KPI</p>
+        </div>
+
+        {mode === 'line' ? (
+          <>
+            <p className="text-sm text-gray-600">กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+            <button
+              onClick={liff.login}
+              className="w-full flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34d] text-white font-semibold py-3 px-6 rounded-xl transition-colors text-base"
+            >
+              <LogIn className="w-5 h-5" />
+              เข้าสู่ระบบด้วย LINE
+            </button>
+            <button
+              onClick={() => setMode('password')}
+              className="w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 text-sm py-2 transition-colors"
+            >
+              <KeyRound className="w-4 h-4" />
+              เข้าสู่ระบบด้วยรหัสผ่าน
+            </button>
+          </>
+        ) : (
+          <form onSubmit={handlePasswordLogin} className="space-y-3 text-left">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                autoFocus
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+              />
+            </div>
+            {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 px-6 rounded-xl transition-colors text-sm"
+            >
+              <KeyRound className="w-4 h-4" />
+              {loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('line'); setError(''); }}
+              className="w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 text-sm py-2 transition-colors"
+            >
+              <LogIn className="w-4 h-4" />
+              เข้าสู่ระบบด้วย LINE แทน
+            </button>
+          </form>
+        )}
+
+        <p className="text-xs text-gray-400">ระบบจะเก็บประวัติการเข้าใช้งานและการแก้ไขข้อมูล</p>
+      </div>
     </div>
   );
 }

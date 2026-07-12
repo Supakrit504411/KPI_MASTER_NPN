@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { CheckCircle2, XCircle, Clock, X, MessageSquare, Maximize2, Minimize2 } from 'lucide-react';
 
-export default function DataTable({ data, notes, onNoteChange, onSaveNote, highlightedItem, onItemSelect, highlightedItemFromComparison, lineProfile }) {
+export default function DataTable({ data, notes, onNoteChange, onSaveNote, highlightedItem, onItemSelect, highlightedItemFromComparison, lineProfile, canEditNotes = true }) {
   const [selectedRow, setSelectedRow] = useState(null);
   const [onlyNoted, setOnlyNoted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -253,13 +253,14 @@ export default function DataTable({ data, notes, onNoteChange, onSaveNote, highl
           }
           onClose={() => setSelectedRow(null)}
           lineProfile={lineProfile}
+          canEditNotes={canEditNotes}
         />
       )}
     </>
   );
 }
 
-function DetailModal({ row, note, onNoteChange, onSave, onClose, lineProfile }) {
+function DetailModal({ row, note, onNoteChange, onSave, onClose, lineProfile, canEditNotes = true }) {
   const lineUserName = lineProfile?.displayName || '';
   const [userName, setUserName] = useState(
     () => lineUserName || localStorage.getItem('pea-dashboard-username') || ''
@@ -374,7 +375,7 @@ function DetailModal({ row, note, onNoteChange, onSave, onClose, lineProfile }) 
                 <span className="text-sm font-medium text-green-800">{lineProfile.displayName}</span>
                 <span className="text-xs text-green-600 ml-auto">LINE Login</span>
               </div>
-            ) : (
+            ) : canEditNotes ? (
               <>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
                   ชื่อผู้บันทึก <span className="text-gray-300 normal-case">(ใช้เก็บประวัติว่าใครกรอก)</span>
@@ -388,19 +389,20 @@ function DetailModal({ row, note, onNoteChange, onSave, onClose, lineProfile }) 
                              focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                 />
               </>
-            )}
+            ) : null}
             <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
               หมายเหตุ
             </label>
             <textarea
               value={note}
               onChange={(e) => onNoteChange(e.target.value)}
-              placeholder="พิมพ์หมายเหตุที่นี่..."
+              placeholder={canEditNotes ? 'พิมพ์หมายเหตุที่นี่...' : 'ไม่มีสิทธิ์แก้ไขหมายเหตุ (เข้าด้วย LINE เพื่อแก้ไข)'}
               rows={3}
-              autoFocus
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
+              autoFocus={canEditNotes}
+              disabled={!canEditNotes}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
                          focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent
-                         resize-none"
+                         resize-none ${!canEditNotes ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
             />
           </section>
         </div>
@@ -412,12 +414,14 @@ function DetailModal({ row, note, onNoteChange, onSave, onClose, lineProfile }) 
           >
             ยกเลิก
           </button>
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            บันทึกรายการ
-          </button>
+          {canEditNotes && (
+            <button
+              onClick={handleSave}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              บันทึกรายการ
+            </button>
+          )}
         </div>
       </div>
     </div>
