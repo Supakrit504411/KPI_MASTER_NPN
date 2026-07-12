@@ -76,27 +76,39 @@ export default function DashboardContainer() {
       const { toPng } = await import('html-to-image');
       const el = ref.current;
 
-      // unlock both vertical (max-h-*) and horizontal (overflow-x-auto) scroll containers
-      const scrollEls = el.querySelectorAll('[class*="max-h-"], [class*="overflow-x-auto"], [class*="overflow-auto"]');
-      const saved = [];
-      scrollEls.forEach((sc) => {
-        saved.push({
+      // 1) expand root element itself so layout reflows to full content width
+      const rootSaved = {
+        width: el.style.width,
+        maxWidth: el.style.maxWidth,
+        overflow: el.style.overflow,
+      };
+      el.style.width = 'max-content';
+      el.style.maxWidth = 'none';
+      el.style.overflow = 'visible';
+
+      // 2) unlock inner scroll containers (max-h-* / overflow-x-auto)
+      const innerEls = el.querySelectorAll('[class*="max-h-"], [class*="overflow-x"], [class*="overflow-auto"]');
+      const innerSaved = [];
+      innerEls.forEach((sc) => {
+        innerSaved.push({
           el: sc,
           maxHeight: sc.style.maxHeight,
           overflow: sc.style.overflow,
           overflowX: sc.style.overflowX,
           overflowY: sc.style.overflowY,
           width: sc.style.width,
+          minWidth: sc.style.minWidth,
         });
         sc.style.maxHeight = 'none';
         sc.style.overflow = 'visible';
         sc.style.overflowX = 'visible';
         sc.style.overflowY = 'visible';
-        sc.style.width = sc.scrollWidth + 'px';
+        sc.style.width = 'max-content';
+        sc.style.minWidth = '100%';
       });
 
-      // wait one frame for layout to reflow
-      await new Promise((r) => requestAnimationFrame(r));
+      // 3) wait 2 frames for layout to fully reflow
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
       const fullW = el.scrollWidth;
       const fullH = el.scrollHeight;
@@ -110,12 +122,17 @@ export default function DashboardContainer() {
         style: { width: fullW + 'px', height: fullH + 'px', overflow: 'visible' },
       });
 
-      saved.forEach(({ el: s, maxHeight, overflow, overflowX, overflowY, width }) => {
+      // restore
+      el.style.width = rootSaved.width;
+      el.style.maxWidth = rootSaved.maxWidth;
+      el.style.overflow = rootSaved.overflow;
+      innerSaved.forEach(({ el: s, maxHeight, overflow, overflowX, overflowY, width, minWidth }) => {
         s.style.maxHeight = maxHeight;
         s.style.overflow = overflow;
         s.style.overflowX = overflowX;
         s.style.overflowY = overflowY;
         s.style.width = width;
+        s.style.minWidth = minWidth;
       });
 
       const link = document.createElement('a');
@@ -838,6 +855,13 @@ function ItemNavigator({ items, highlightedItem, onSelectItem }) {
   );
 }
 
+// Pantone 1245C: R=199 G=145 B=27 (golden amber)
+// Pantone 7650C: R=116 G=4  B=95  (deep purple-magenta)
+const PEA_GOLD   = { r: 199, g: 145, b: 27  };
+const PEA_PURPLE = { r: 116, g: 4,   b: 95  };
+
+function rgba(c, a) { return `rgba(${c.r},${c.g},${c.b},${a})`; }
+
 function NeuralNetBackground() {
   const canvasRef = useRef(null);
 
@@ -848,49 +872,53 @@ function NeuralNetBackground() {
     let animId;
 
     const resize = () => {
-      canvas.width = canvas.offsetWidth;
+      canvas.width  = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
     };
     resize();
     window.addEventListener('resize', resize);
 
-    const N = 70;
-    const particles = Array.from({ length: N }, () => ({
+    const N = 65;
+    const particles = Array.from({ length: N }, (_, i) => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      r: Math.random() * 2 + 0.8,
+      vx: (Math.random() - 0.5) * 0.35,
+      vy: (Math.random() - 0.5) * 0.35,
+      r: Math.random() * 1.8 + 0.8,
       pulse: Math.random() * Math.PI * 2,
+      // alternate gold / purple nodes
+      color: i % 3 === 0 ? PEA_PURPLE : PEA_GOLD,
     }));
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // subtle grid
-      ctx.strokeStyle = 'rgba(50,120,255,0.06)';
-      ctx.lineWidth = 0.5;
-      const gs = 60;
+      // perspective grid — gold tint
+      ctx.lineWidth = 0.4;
+      const gs = 55;
       for (let x = 0; x < canvas.width; x += gs) {
+        ctx.strokeStyle = rgba(PEA_GOLD, 0.05);
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
       }
       for (let y = 0; y < canvas.height; y += gs) {
+        ctx.strokeStyle = rgba(PEA_GOLD, 0.04);
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
       }
 
       const t = Date.now() * 0.001;
 
-      // connections
+      // neural connections — blend gold↔purple by distance
       for (let i = 0; i < N; i++) {
         for (let j = i + 1; j < N; j++) {
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < 110) {
-            const alpha = (1 - d / 110) * 0.25;
+          const d  = Math.sqrt(dx * dx + dy * dy);
+          if (d < 115) {
+            const alpha = (1 - d / 115) * 0.28;
+            const mid   = d < 57 ? PEA_GOLD : PEA_PURPLE;
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(80,180,255,${alpha})`;
-            ctx.lineWidth = 0.6;
+            ctx.strokeStyle = rgba(mid, alpha);
+            ctx.lineWidth   = 0.55;
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
             ctx.stroke();
@@ -900,40 +928,47 @@ function NeuralNetBackground() {
 
       // nodes
       particles.forEach((p) => {
-        p.pulse += 0.03;
-        const glow = 0.4 + Math.sin(p.pulse) * 0.3;
-        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
-        grad.addColorStop(0, `rgba(100,200,255,${glow})`);
-        grad.addColorStop(1, 'rgba(100,200,255,0)');
+        p.pulse += 0.025;
+        const glow = 0.45 + Math.sin(p.pulse) * 0.3;
+
+        // halo
+        const halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 5);
+        halo.addColorStop(0, rgba(p.color, glow * 0.6));
+        halo.addColorStop(1, rgba(p.color, 0));
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
+        ctx.arc(p.x, p.y, p.r * 5, 0, Math.PI * 2);
+        ctx.fillStyle = halo;
         ctx.fill();
 
+        // core dot
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(150,220,255,${glow + 0.2})`;
+        ctx.fillStyle = rgba(p.color, glow + 0.25);
         ctx.fill();
 
         p.x += p.vx;
         p.y += p.vy;
-        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
-        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+        if (p.x < 0 || p.x > canvas.width)  p.vx *= -1;
+        if (p.y < 0 || p.y > canvas.height)  p.vy *= -1;
       });
 
-      // floating orbs
-      for (let i = 0; i < 3; i++) {
-        const ox = canvas.width * (0.2 + i * 0.3) + Math.sin(t * 0.3 + i * 2) * 40;
-        const oy = canvas.height * 0.5 + Math.cos(t * 0.2 + i * 1.5) * 60;
-        const og = ctx.createRadialGradient(ox, oy, 0, ox, oy, 80);
-        const colors = ['rgba(30,80,255,0.08)', 'rgba(80,0,200,0.07)', 'rgba(0,150,255,0.07)'];
-        og.addColorStop(0, colors[i]);
+      // large floating orbs: gold left, purple right, gold-purple center
+      const orbDefs = [
+        { cx: 0.15, cy: 0.35, r: 110, c: PEA_GOLD,   a: 0.09 },
+        { cx: 0.85, cy: 0.60, r: 130, c: PEA_PURPLE,  a: 0.10 },
+        { cx: 0.50, cy: 0.80, r:  90, c: PEA_GOLD,    a: 0.06 },
+      ];
+      orbDefs.forEach(({ cx, cy, r, c, a }, i) => {
+        const ox = canvas.width  * cx + Math.sin(t * 0.25 + i * 2.1) * 35;
+        const oy = canvas.height * cy + Math.cos(t * 0.18 + i * 1.7) * 45;
+        const og = ctx.createRadialGradient(ox, oy, 0, ox, oy, r);
+        og.addColorStop(0, rgba(c, a));
         og.addColorStop(1, 'transparent');
         ctx.beginPath();
-        ctx.arc(ox, oy, 80, 0, Math.PI * 2);
+        ctx.arc(ox, oy, r, 0, Math.PI * 2);
         ctx.fillStyle = og;
         ctx.fill();
-      }
+      });
 
       animId = requestAnimationFrame(draw);
     };
@@ -975,35 +1010,36 @@ function LoginScreen({ liff }) {
   return (
     <div
       className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #020818 0%, #0a1628 40%, #0d1b3e 70%, #060b1a 100%)' }}
+      style={{ background: 'linear-gradient(160deg, #0a0006 0%, #120008 30%, #0e0a00 65%, #080005 100%)' }}
     >
       <NeuralNetBackground />
 
       {/* card */}
       <div className="relative z-10 w-full max-w-sm">
         {/* glow ring behind card */}
-        <div className="absolute -inset-1 rounded-3xl blur-xl opacity-30"
-          style={{ background: 'linear-gradient(135deg,#3b82f6,#6366f1,#06b6d4)' }} />
+        <div className="absolute -inset-1 rounded-3xl blur-xl opacity-40"
+          style={{ background: 'linear-gradient(135deg,#c7911b,#740460,#c7911b)' }} />
 
-        <div className="relative bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl p-8 text-center space-y-5">
+        <div className="relative backdrop-blur-md border rounded-2xl shadow-2xl p-8 text-center space-y-5"
+          style={{ background: 'rgba(10,3,8,0.75)', borderColor: 'rgba(199,145,27,0.25)' }}>
           {/* logo */}
           <div className="relative mx-auto w-16 h-16">
-            <div className="absolute inset-0 rounded-full blur-md opacity-60"
-              style={{ background: 'linear-gradient(135deg,#3b82f6,#06b6d4)' }} />
+            <div className="absolute inset-0 rounded-full blur-md opacity-70"
+              style={{ background: 'linear-gradient(135deg,#c7911b,#740460)' }} />
             <div className="relative w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg,#1d4ed8,#0891b2)' }}>
+              style={{ background: 'linear-gradient(135deg,#8a6010,#4a0240)' }}>
               <LogIn className="w-8 h-8 text-white" />
             </div>
           </div>
 
           <div>
             <h1 className="text-2xl font-bold text-white mb-1">PEA Dashboard</h1>
-            <p className="text-sm text-blue-200/80">แดชบอร์ดสรุปผลการประเมิน KPI</p>
+            <p className="text-sm" style={{ color: 'rgba(199,145,27,0.75)' }}>แดชบอร์ดสรุปผลการประเมิน KPI</p>
           </div>
 
           {mode === 'line' ? (
             <>
-              <p className="text-sm text-blue-100/70">กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+              <p className="text-sm text-white/50">กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
               <button
                 onClick={liff.login}
                 className="w-full flex items-center justify-center gap-2 bg-[#06C755] hover:bg-[#05b34d] text-white font-semibold py-3 px-6 rounded-xl transition-colors text-base shadow-lg"
@@ -1013,7 +1049,7 @@ function LoginScreen({ liff }) {
               </button>
               <button
                 onClick={() => setMode('password')}
-                className="w-full flex items-center justify-center gap-2 text-blue-200/70 hover:text-white text-sm py-2 transition-colors"
+                className="w-full flex items-center justify-center gap-2 text-white/40 hover:text-white/70 text-sm py-2 transition-colors"
               >
                 <KeyRound className="w-4 h-4" />
                 เข้าสู่ระบบด้วยรหัสผ่าน
@@ -1022,23 +1058,25 @@ function LoginScreen({ liff }) {
           ) : (
             <form onSubmit={handlePasswordLogin} className="space-y-3 text-left">
               <div>
-                <label className="block text-xs font-medium text-blue-200/80 mb-1">Username</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'rgba(199,145,27,0.7)' }}>Username</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/20 focus:outline-none"
+                  style={{ background: 'rgba(199,145,27,0.08)', border: '1px solid rgba(199,145,27,0.25)' }}
                   autoFocus
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-blue-200/80 mb-1">Password</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'rgba(199,145,27,0.7)' }}>Password</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/20 focus:outline-none"
+                  style={{ background: 'rgba(199,145,27,0.08)', border: '1px solid rgba(199,145,27,0.25)' }}
                   required
                 />
               </div>
@@ -1046,7 +1084,8 @@ function LoginScreen({ liff }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold py-3 px-6 rounded-xl transition-colors text-sm shadow-lg"
+                className="w-full flex items-center justify-center gap-2 disabled:opacity-50 text-white font-semibold py-3 px-6 rounded-xl transition-all text-sm shadow-lg hover:brightness-110"
+                style={{ background: 'linear-gradient(135deg,#8a6010,#4a0240)' }}
               >
                 <KeyRound className="w-4 h-4" />
                 {loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
@@ -1054,7 +1093,7 @@ function LoginScreen({ liff }) {
               <button
                 type="button"
                 onClick={() => { setMode('line'); setError(''); }}
-                className="w-full flex items-center justify-center gap-2 text-blue-200/70 hover:text-white text-sm py-2 transition-colors"
+                className="w-full flex items-center justify-center gap-2 text-white/40 hover:text-white/70 text-sm py-2 transition-colors"
               >
                 <LogIn className="w-4 h-4" />
                 เข้าสู่ระบบด้วย LINE แทน
@@ -1062,7 +1101,7 @@ function LoginScreen({ liff }) {
             </form>
           )}
 
-          <p className="text-xs text-blue-200/40">ระบบจะเก็บประวัติการเข้าใช้งานและการแก้ไขข้อมูล</p>
+          <p className="text-xs text-white/25">ระบบจะเก็บประวัติการเข้าใช้งานและการแก้ไขข้อมูล</p>
         </div>
       </div>
     </div>
