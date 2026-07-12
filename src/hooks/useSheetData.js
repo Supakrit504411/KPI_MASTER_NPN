@@ -43,14 +43,16 @@ export default function useSheetData() {
 
   const handleSelectPEA = useCallback((peaOrList) => {
     if (Array.isArray(peaOrList)) {
-      // Batch update: replace with the provided list
       setSelectedPEAs(peaOrList);
+      if (peaOrList.length > 0) setMonitorMode(false);
     } else if (peaOrList === null || peaOrList === undefined) {
       return;
     } else {
-      setSelectedPEAs((prev) =>
-        prev.includes(peaOrList) ? prev.filter((p) => p !== peaOrList) : [...prev, peaOrList]
-      );
+      setSelectedPEAs((prev) => {
+        const next = prev.includes(peaOrList) ? prev.filter((p) => p !== peaOrList) : [...prev, peaOrList];
+        return next;
+      });
+      setMonitorMode(false);
     }
   }, []);
 
@@ -62,39 +64,42 @@ export default function useSheetData() {
         prev.includes(groupOrList) ? prev.filter((g) => g !== groupOrList) : [...prev, groupOrList]
       );
     }
+    setMonitorMode(false);
   }, []);
 
   const handleToggleMonitor = useCallback(() => {
-    // ห้ามเรียก setState อื่นภายใน updater — StrictMode เรียก updater ซ้ำ
-    setMonitorMode((prev) => !prev);
-    setSelectedGroups([]);
-    setSelectedPEAs([]);
+    setMonitorMode((prev) => {
+      if (!prev) {
+        setSelectedGroups([]);
+        setSelectedPEAs([...MONITOR_PEAS]);
+        return true;
+      }
+      setSelectedPEAs([]);
+      return false;
+    });
   }, []);
 
   const activeData = useMemo(() => {
     let data = [...rawData];
 
+    if (selectedGroups.length > 0) {
+      data = data.filter((row) => selectedGroups.includes(row.group));
+    }
+    if (selectedPEAs.length > 0) {
+      data = data.filter((row) => selectedPEAs.includes(row.pea));
+    }
+
     if (monitorMode) {
-      data = data.filter((row) => MONITOR_PEAS.includes(row.pea));
-      // Sort by the MONITOR_PEAS order (use toSorted to avoid mutating)
       data = data.toSorted((a, b) => {
         const orderMap = {};
         MONITOR_PEAS.forEach((pea, idx) => { orderMap[pea] = idx; });
         return (orderMap[a.pea] ?? 999) - (orderMap[b.pea] ?? 999);
       });
-    } else {
-      if (selectedGroups.length > 0) {
-        data = data.filter((row) => selectedGroups.includes(row.group));
-      }
-      if (selectedPEAs.length > 0) {
-        data = data.filter((row) => selectedPEAs.includes(row.pea));
-      }
     }
 
     return data;
   }, [rawData, monitorMode, selectedGroups, selectedPEAs]);
 
-  // เรียง 4 หน่วยงาน Monitor ขึ้นก่อน (ตามลำดับ MONITOR_PEAS) ที่เหลือเรียงตามอักษรไทย
   const peas = useMemo(() => {
     const list = getUniquePEAs(activeData);
     return [...list].sort((a, b) => {
@@ -106,8 +111,7 @@ export default function useSheetData() {
       return a.localeCompare(b, 'th');
     });
   }, [activeData]);
-  // รายการตัวเลือกใน dropdown ต้องมาจากข้อมูลทั้งหมด ไม่ใช่ข้อมูลที่ถูกกรองแล้ว
-  // มิฉะนั้นเลือก 1 หน่วยงานแล้วตัวเลือกอื่นจะหายหมด
+
   const allPeas = useMemo(() => getUniquePEAs(rawData), [rawData]);
   const groups = useMemo(() => getUniqueGroups(rawData), [rawData]);
   const summaries = useMemo(() => peas.map((pea) => getPEASummary(activeData, pea)), [activeData, peas]);

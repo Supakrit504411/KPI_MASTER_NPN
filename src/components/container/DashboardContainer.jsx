@@ -16,8 +16,7 @@ import ErrorMessage from '../presentational/ErrorMessage';
 import SummaryScoreTable from '../presentational/SummaryScoreTable';
 import { getUniqueItems } from '../../utils/parseCSV';
 import { getDataStatus, updateDataStatus } from '../../services/googleSheet';
-import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound, Filter, ChevronDown, Check, Search, X } from 'lucide-react';
 
 export default function DashboardContainer() {
   const {
@@ -68,15 +67,32 @@ export default function DashboardContainer() {
   };
 
   const handleScreenshot = async (ref) => {
-    if (!ref?.current) return;
+    if (!ref?.current) {
+      alert('ไม่พบส่วนที่ต้องการบันทึกภาพ');
+      return;
+    }
     try {
-      const canvas = await html2canvas(ref.current, { useCORS: true, scale: 2, backgroundColor: '#ffffff' });
+      const el = ref.current;
+      const canvas = await import('html2canvas').then((mod) => {
+        const fn = mod.default || mod;
+        return fn(el, {
+          useCORS: true,
+          allowTaint: true,
+          scale: 2,
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: -window.scrollY,
+          windowWidth: el.scrollWidth,
+          windowHeight: el.scrollHeight,
+        });
+      });
       const link = document.createElement('a');
       link.download = `pea-dashboard-${new Date().toISOString().slice(0, 10)}.png`;
-      link.href = canvas.toDataURL();
+      link.href = canvas.toDataURL('image/png');
       link.click();
-    } catch {
-      alert('ไม่สามารถบันทึกภาพได้');
+    } catch (err) {
+      console.error('Screenshot error:', err);
+      alert('ไม่สามารถบันทึกภาพได้: ' + (err.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'));
     }
   };
 
@@ -86,7 +102,6 @@ export default function DashboardContainer() {
   };
 
   const resetAllFilters = () => {
-    // Clear all multi-select filters (batch operations)
     handleSelectGroup([]);
     handleSelectPEA([]);
   };
@@ -94,7 +109,6 @@ export default function DashboardContainer() {
   const handleOverallStatusClick = (status) => {
     setActiveStatus((prev) => (prev === status ? null : status));
     setCardFilter({ pea: null, status: null });
-    // Clear all PEA selections (batch operation)
     if (selectedPEAs && selectedPEAs.length > 0) {
       handleSelectPEA([]);
     }
@@ -129,12 +143,10 @@ export default function DashboardContainer() {
   const effectiveStatus = cardFilter.status || activeStatus;
   const items = useMemo(() => getUniqueItems(activeData), [activeData]);
 
-  // Handle item selection from SummaryScoreTable or DataTable row click
   const handleItemSelect = (item) => {
     setHighlightedItem((prev) => (prev === item ? null : item));
   };
 
-  // Handle item selection from ItemComparison list (toggle on/off)
   const handleItemComparisonSelect = (item) => {
     if (item === highlightedItem) {
       setHighlightedItem(null);
@@ -246,7 +258,7 @@ export default function DashboardContainer() {
               <span className="text-gray-500 ml-1">({finalData.length} รายการ)</span>
             </span>
             <span className="text-xs text-amber-700/80">
-              ปิด Monitor เพื่อเลือก Group หรือ PEA
+              ปิด Monitor เพื่อดูทั้งหมด
             </span>
           </div>
         )}
@@ -277,33 +289,30 @@ export default function DashboardContainer() {
           />
         </section>
 
-        <section className="space-y-3">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-            <GroupFilter
-              groups={groups}
-              selectedGroups={selectedGroups}
-              disabled={monitorMode}
-              onSelectGroup={(group) => {
-                handleSelectGroup(group);
-                resetDetailFilters();
-              }}
-            />
-
-            <PEAFilter
-              peas={allPeas}
-              selectedPEAs={selectedPEAs}
-              monitorMode={monitorMode}
-              disabled={monitorMode}
-              onSelectPEA={(pea) => {
-                handleSelectPEA(pea);
-                resetDetailFilters();
-              }}
-              onToggleMonitor={() => {
-                handleToggleMonitor();
-                resetDetailFilters();
-              }}
-            />
-          </div>
+        {/* ตัวกรอง: กลุ่ม + หน่วยงาน + Monitor — รวมอยู่ในแถวเดียว */}
+        <section className="flex flex-wrap items-center gap-4">
+          <GroupFilter
+            groups={groups}
+            selectedGroups={selectedGroups}
+            onSelectGroup={(group) => {
+              handleSelectGroup(group);
+              resetDetailFilters();
+            }}
+          />
+          <div className="w-px h-6 bg-gray-300 hidden sm:block" />
+          <PEAFilter
+            peas={allPeas}
+            selectedPEAs={selectedPEAs}
+            monitorMode={monitorMode}
+            onSelectPEA={(pea) => {
+              handleSelectPEA(pea);
+              resetDetailFilters();
+            }}
+            onToggleMonitor={() => {
+              handleToggleMonitor();
+              resetDetailFilters();
+            }}
+          />
         </section>
 
         <section ref={summaryTableRef}>
@@ -420,9 +429,8 @@ export default function DashboardContainer() {
                   บันทึกภาพ
                 </button>
               </h2>
-              {/* Quick Filters */}
+              {/* Quick Filters: Group + PEA dropdown + Monitor */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* Group Quick Filter */}
                 <div className="flex items-center gap-1.5 text-gray-600 text-xs font-medium">
                   <Layers className="w-3.5 h-3.5" />
                   <span>Group:</span>
@@ -465,7 +473,16 @@ export default function DashboardContainer() {
                     </button>
                   );
                 })}
-                {/* Monitor Quick Filter */}
+                <div className="w-px h-6 bg-gray-300 mx-1" />
+                {/* PEA dropdown in DataTable section */}
+                <DataTablePEADropdown
+                  peas={allPeas}
+                  selectedPEAs={selectedPEAs}
+                  onSelectPEA={(pea) => {
+                    handleSelectPEA(pea);
+                    resetDetailFilters();
+                  }}
+                />
                 <div className="w-px h-6 bg-gray-300 mx-1" />
                 <button
                   type="button"
@@ -515,8 +532,109 @@ export default function DashboardContainer() {
   );
 }
 
+function DataTablePEADropdown({ peas, selectedPEAs, onSelectPEA }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const filtered = search.trim()
+    ? peas.filter((p) => p.toLowerCase().includes(search.trim().toLowerCase()))
+    : peas;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all border
+          ${open
+            ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100'
+            : selectedPEAs.length > 0
+              ? 'bg-blue-50 text-blue-700 border-blue-300'
+              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+          }`}
+      >
+        <Filter className="w-3.5 h-3.5" />
+        {selectedPEAs.length === 0
+          ? `PEA (${peas.length})`
+          : `PEA (${selectedPEAs.length})`}
+        <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        {selectedPEAs.length > 0 && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectPEA([]);
+              setOpen(false);
+            }}
+            className="hover:text-red-600 cursor-pointer text-gray-400"
+          >
+            <X className="w-3 h-3" />
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-72">
+          <div className="px-2 py-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="ค้นหาหน่วยงาน..."
+                className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 rounded-md
+                           focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="max-h-60 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-gray-400 text-center">ไม่พบข้อมูล</p>
+            ) : (
+              filtered.map((pea) => {
+                const isSelected = selectedPEAs.includes(pea);
+                return (
+                  <button
+                    key={pea}
+                    type="button"
+                    onClick={() => onSelectPEA(pea)}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors
+                      ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'}`}
+                  >
+                    <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border flex-shrink-0
+                      ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                      {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                    </span>
+                    <span className="truncate">{pea}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LoginScreen({ liff }) {
-  const [mode, setMode] = useState('line'); // 'line' | 'password'
+  const [mode, setMode] = useState('line');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

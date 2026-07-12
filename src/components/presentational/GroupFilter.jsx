@@ -1,46 +1,39 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Layers, ChevronDown, Check, X, Search } from 'lucide-react';
 
-export default function GroupFilter({ groups, selectedGroups, onSelectGroup, disabled = false }) {
+export default function GroupFilter({ groups, selectedGroups, onSelectGroup }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
 
-  // Document-level click-outside listener — only active when dropdown is open
   useEffect(() => {
     if (!open) return;
-
     const handleClick = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setOpen(false);
       }
     };
-
-    // Use mousedown for faster response
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
   const toggleAll = useCallback(() => {
-    if (disabled) return;
     if (selectedGroups.length === groups.length) {
       onSelectGroup([]);
     } else {
       onSelectGroup(groups);
     }
-  }, [disabled, selectedGroups.length, groups.length, groups, onSelectGroup]);
+  }, [selectedGroups.length, groups.length, groups, onSelectGroup]);
 
   const toggleOne = useCallback((group) => {
-    if (disabled) return;
     onSelectGroup(group);
-  }, [disabled, onSelectGroup]);
+  }, [onSelectGroup]);
 
   const clearAll = useCallback(() => {
-    if (disabled) return;
     onSelectGroup([]);
     setSearch('');
     setOpen(false);
-  }, [disabled, onSelectGroup]);
+  }, [onSelectGroup]);
 
   const groupColors = {
     NE1: { selected: 'bg-sky-500', active: 'bg-sky-100 text-sky-700 border-sky-300' },
@@ -64,17 +57,12 @@ export default function GroupFilter({ groups, selectedGroups, onSelectGroup, dis
       <div ref={containerRef} className="relative">
         <button
           type="button"
-          onClick={() => {
-            if (disabled) return;
-            setOpen((prev) => !prev);
-          }}
-          disabled={disabled}
+          onClick={() => setOpen((prev) => !prev)}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-all
             ${open
               ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100'
               : 'bg-white border-gray-300 hover:bg-gray-50'
-            }
-            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            }`}
         >
           <span className="text-gray-700 font-medium">
             {selectedGroups.length === 0
@@ -85,7 +73,6 @@ export default function GroupFilter({ groups, selectedGroups, onSelectGroup, dis
           {selectedGroups.length > 0 && (
             <span className="flex items-center gap-1 text-xs text-blue-600">
               <span className="font-medium">{selectedGroups.join(', ')}</span>
-              {/* ใช้ span แทน button — HTML ห้ามซ้อน button ใน button */}
               <span
                 role="button"
                 tabIndex={0}
@@ -118,7 +105,6 @@ export default function GroupFilter({ groups, selectedGroups, onSelectGroup, dis
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="ค้นหากลุ่ม..."
-                  disabled={disabled}
                   className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 rounded-md
                              focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                 />
@@ -128,10 +114,8 @@ export default function GroupFilter({ groups, selectedGroups, onSelectGroup, dis
             <button
               type="button"
               onClick={toggleAll}
-              disabled={disabled}
               className={`w-full flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100
-                ${isSelectedAll ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'}
-                ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                ${isSelectedAll ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'}`}
             >
               <span className={`w-4 h-4 rounded flex items-center justify-center border flex-shrink-0
                 ${isSelectedAll ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
@@ -152,10 +136,8 @@ export default function GroupFilter({ groups, selectedGroups, onSelectGroup, dis
                       key={group}
                       type="button"
                       onClick={() => toggleOne(group)}
-                      disabled={disabled}
                       className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors
-                        ${isSelected ? colors.active : 'hover:bg-gray-50 text-gray-700'}
-                        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        ${isSelected ? colors.active : 'hover:bg-gray-50 text-gray-700'}`}
                     >
                       <span className={`w-4 h-4 rounded flex items-center justify-center border flex-shrink-0
                         ${isSelected ? `${colors.selected} border-current` : 'border-gray-300'}`}>
@@ -170,12 +152,6 @@ export default function GroupFilter({ groups, selectedGroups, onSelectGroup, dis
           </div>
         )}
       </div>
-
-      {open && (
-        <span className="text-xs text-blue-600">
-          กำลังกรอง: {selectedGroups.join(', ') || 'ทั้งหมด'}
-        </span>
-      )}
     </div>
   );
 }

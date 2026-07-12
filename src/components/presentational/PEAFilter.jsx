@@ -7,7 +7,6 @@ export default function PEAFilter({
   onSelectPEA,
   monitorMode,
   onToggleMonitor,
-  disabled = false,
 }) {
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
@@ -27,25 +26,22 @@ export default function PEAFilter({
   }, [open]);
 
   const handleSelectAll = useCallback(() => {
-    if (disabled) return;
     if (selectedPEAs.length === peas.length && peas.length > 0) {
       onSelectPEA([]);
     } else {
       onSelectPEA(peas);
     }
-  }, [disabled, selectedPEAs.length, peas.length, peas, onSelectPEA]);
+  }, [selectedPEAs.length, peas.length, peas, onSelectPEA]);
 
   const handleSelectOne = useCallback((pea) => {
-    if (disabled) return;
     onSelectPEA(pea);
-  }, [disabled, onSelectPEA]);
+  }, [onSelectPEA]);
 
   const clearAll = useCallback(() => {
-    if (disabled) return;
     onSelectPEA([]);
     setSearch('');
     setOpen(false);
-  }, [disabled, onSelectPEA]);
+  }, [onSelectPEA]);
 
   const isSelectedAll = selectedPEAs.length === peas.length && peas.length > 0;
 
@@ -63,17 +59,12 @@ export default function PEAFilter({
       <div ref={containerRef} className="relative">
         <button
           type="button"
-          onClick={() => {
-            if (disabled) return;
-            setOpen((prev) => !prev);
-          }}
-          disabled={disabled}
+          onClick={() => setOpen((prev) => !prev)}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-all
             ${open
               ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100'
               : 'bg-white border-gray-300 hover:bg-gray-50'
-            }
-            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            }`}
         >
           <span className="text-gray-700 font-medium">
             {selectedPEAs.length === 0
@@ -82,27 +73,23 @@ export default function PEAFilter({
           </span>
           <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
           {selectedPEAs.length > 0 && (
-            <span className="flex items-center gap-1 text-xs text-blue-600">
-              <span className="font-medium">{selectedPEAs.join(', ')}</span>
-              {/* ใช้ span แทน button — HTML ห้ามซ้อน button ใน button */}
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                clearAll();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
                   e.stopPropagation();
                   clearAll();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.stopPropagation();
-                    clearAll();
-                  }
-                }}
-                className="hover:text-red-600 cursor-pointer"
-                title="ล้างตัวกรอง"
-              >
-                <X className="w-3 h-3" />
-              </span>
+                }
+              }}
+              className="hover:text-red-600 cursor-pointer text-gray-400"
+              title="ล้างตัวกรอง"
+            >
+              <X className="w-3.5 h-3.5" />
             </span>
           )}
         </button>
@@ -117,7 +104,6 @@ export default function PEAFilter({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="ค้นหาหน่วยงาน..."
-                  disabled={disabled}
                   className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 rounded-md
                              focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                 />
@@ -127,10 +113,8 @@ export default function PEAFilter({
             <button
               type="button"
               onClick={handleSelectAll}
-              disabled={disabled}
               className={`w-full flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100
-                ${isSelectedAll ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'}
-                ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                ${isSelectedAll ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'}`}
             >
               <span className={`w-4 h-4 rounded flex items-center justify-center border flex-shrink-0
                 ${isSelectedAll ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
@@ -150,10 +134,8 @@ export default function PEAFilter({
                       key={pea}
                       type="button"
                       onClick={() => handleSelectOne(pea)}
-                      disabled={disabled}
                       className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors
-                        ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'}
-                        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'}`}
                     >
                       <span className={`w-4 h-4 rounded flex items-center justify-center border flex-shrink-0
                         ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
@@ -169,7 +151,6 @@ export default function PEAFilter({
         )}
       </div>
 
-      {/* ปุ่ม Monitor ต้องกดได้เสมอ (ห้ามผูกกับ disabled) ไม่เช่นนั้นเปิดแล้วปิดไม่ได้ */}
       <button
         type="button"
         onClick={onToggleMonitor}
@@ -182,12 +163,6 @@ export default function PEAFilter({
         <Monitor className="w-4 h-4" />
         Monitor (4PEA)
       </button>
-
-      {open && (
-        <span className="text-xs text-blue-600">
-          กำลังกรอง: {selectedPEAs.join(', ') || `ทั้งหมด (${peas.length})`}
-        </span>
-      )}
     </div>
   );
 }
