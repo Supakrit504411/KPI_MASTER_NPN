@@ -92,7 +92,11 @@ export function filterValidRows(data) {
   return data.filter((row) => {
     const pea = normalizeKey(row.pea);
     const item = normalizeKey(row.item);
-    return pea && item;
+    const group = normalizeKey(row.group);
+    if (!pea || !item) return false;
+    if (pea.startsWith('รวม')) return false;
+    if (group === 'รวม') return false;
+    return true;
   });
 }
 
