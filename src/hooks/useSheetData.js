@@ -100,17 +100,7 @@ export default function useSheetData() {
     return data;
   }, [rawData, monitorMode, selectedGroups, selectedPEAs]);
 
-  const peas = useMemo(() => {
-    const list = getUniquePEAs(activeData);
-    return [...list].sort((a, b) => {
-      const ia = MONITOR_PEAS.indexOf(a);
-      const ib = MONITOR_PEAS.indexOf(b);
-      if (ia !== -1 && ib !== -1) return ia - ib;
-      if (ia !== -1) return -1;
-      if (ib !== -1) return 1;
-      return a.localeCompare(b, 'th');
-    });
-  }, [activeData]);
+  const peas = useMemo(() => getUniquePEAs(activeData), [activeData]);
 
   const allPeas = useMemo(() => getUniquePEAs(rawData), [rawData]);
   const groups = useMemo(() => getUniqueGroups(rawData), [rawData]);

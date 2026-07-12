@@ -99,7 +99,6 @@ export function filterValidRows(data) {
 export function getUniqueGroups(data) {
   const seen = new Set();
   const groups = [];
-  const order = ['จุดรวมงาน', 'S', 'รวม', 'NE1'];
 
   for (const row of data) {
     const group = normalizeKey(row.group);
@@ -108,11 +107,7 @@ export function getUniqueGroups(data) {
     groups.push(group);
   }
 
-  return groups.sort((a, b) => {
-    const ia = order.indexOf(a);
-    const ib = order.indexOf(b);
-    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-  });
+  return groups;
 }
 
 export function getUniquePEAs(data) {
@@ -126,12 +121,7 @@ export function getUniquePEAs(data) {
     peas.push(pea);
   }
 
-  return peas.sort((a, b) => {
-    const aIsSum = a.startsWith('รวม');
-    const bIsSum = b.startsWith('รวม');
-    if (aIsSum !== bIsSum) return aIsSum ? 1 : -1;
-    return a.localeCompare(b, 'th');
-  });
+  return peas;
 }
 
 export function getPEAsByGroup(data, groupName) {
@@ -147,7 +137,7 @@ export function getPEAsByGroup(data, groupName) {
     peas.push(pea);
   }
 
-  return peas.sort((a, b) => a.localeCompare(b, 'th'));
+  return peas;
 }
 
 function summarizeRows(rows, labelKey) {
