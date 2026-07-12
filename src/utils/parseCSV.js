@@ -92,29 +92,27 @@ export function filterValidRows(data) {
   return data.filter((row) => {
     const pea = normalizeKey(row.pea);
     const item = normalizeKey(row.item);
-    const group = normalizeKey(row.group);
-    if (!pea || !item) return false;
-    if (pea.startsWith('รวม')) return false;
-    if (group === 'รวม') return false;
-    return true;
+    return pea && item;
   });
 }
 
 export function getUniqueGroups(data) {
   const seen = new Set();
   const groups = [];
+  const order = ['จุดรวมงาน', 'S', 'รวม', 'NE1'];
 
   for (const row of data) {
     const group = normalizeKey(row.group);
-    // ข้ามแถวสรุป (PEA ขึ้นต้นด้วย "รวม") — กลุ่มที่มีเฉพาะแถวสรุป เช่น NE1
-    // จะไม่มีหน่วยงานให้แสดง ทำให้หน้าจอว่างเปล่าเมื่อถูกเลือก
-    const pea = normalizeKey(row.pea);
-    if (!group || group === 'รวม' || !pea || pea.startsWith('รวม') || seen.has(group)) continue;
+    if (!group || seen.has(group)) continue;
     seen.add(group);
     groups.push(group);
   }
 
-  return groups;
+  return groups.sort((a, b) => {
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
 }
 
 export function getUniquePEAs(data) {
@@ -123,12 +121,17 @@ export function getUniquePEAs(data) {
 
   for (const row of data) {
     const pea = normalizeKey(row.pea);
-    if (!pea || pea.startsWith('รวม') || seen.has(pea)) continue;
+    if (!pea || seen.has(pea)) continue;
     seen.add(pea);
     peas.push(pea);
   }
 
-  return peas.sort((a, b) => a.localeCompare(b, 'th'));
+  return peas.sort((a, b) => {
+    const aIsSum = a.startsWith('รวม');
+    const bIsSum = b.startsWith('รวม');
+    if (aIsSum !== bIsSum) return aIsSum ? 1 : -1;
+    return a.localeCompare(b, 'th');
+  });
 }
 
 export function getPEAsByGroup(data, groupName) {
@@ -139,7 +142,7 @@ export function getPEAsByGroup(data, groupName) {
   for (const row of data) {
     if (normalizeKey(row.group) !== normalizedGroup) continue;
     const pea = normalizeKey(row.pea);
-    if (!pea || pea.startsWith('รวม') || seen.has(pea)) continue;
+    if (!pea || seen.has(pea)) continue;
     seen.add(pea);
     peas.push(pea);
   }
