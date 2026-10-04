@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { Component, useMemo, useRef, useState, useEffect } from 'react';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
 } from 'recharts';
@@ -23,7 +23,7 @@ async function saveNode(node, filename) {
  * - กดที่ legend เพื่อแสดง/ซ่อนแต่ละเส้น
  * - Previous/Next เลื่อนข้อ KPI, ขยายกราฟ, โหลดภาพกราฟ/ตาราง
  */
-export default function KpiChartRanking({ rawData, items, selectedItem, onSelectItem }) {
+function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
   const [localItem, setLocalItem] = useState(null);
   const [query, setQuery] = useState('');
   const [hidden, setHidden] = useState({});
@@ -142,7 +142,8 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
   const LABEL_COLOR = { result: '#1e3a8a', targetYearly: '#047857', targetLevel5: '#b91c1c' };
   const makeLabel = (key) => function SeriesLabel({ x, y, value, index }) {
     const row = rows[index];
-    const f = isFocus(row?.pea);
+    if (!row) return null; // index เก่าค้างตอนข้อมูลเปลี่ยน (เช่น เปลี่ยนตัวกรอง)
+    const f = isFocus(row.pea);
     if (!showLabels && !f) return null;
     // ค่าที่สูงสุดของจุดนั้นวางไว้ด้านบน ที่เหลือซ้อนลงด้านล่าง ไม่ให้ตัวเลขทับกัน
     const order = SERIES_KEYS.filter((k) => !hidden[k]).sort((a, b) => row[b] - row[a]);
@@ -328,5 +329,36 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
         </div>
       )}
     </>
+  );
+}
+
+
+class Boundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false, key: props.resetKey };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  static getDerivedStateFromProps(props, state) {
+    return props.resetKey !== state.key ? { failed: false, key: props.resetKey } : null;
+  }
+
+  render() {
+    if (this.state.failed) {
+      return <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">แสดงกราฟไม่สำเร็จ ลองเปลี่ยนข้อหรือตัวกรองอีกครั้ง</div>;
+    }
+    return this.props.children;
+  }
+}
+
+export default function KpiChartRanking(props) {
+  return (
+    <Boundary resetKey={`${props.items.length}|${props.selectedItem}|${props.rawData.length}`}>
+      <KpiChartRankingInner {...props} />
+    </Boundary>
   );
 }
