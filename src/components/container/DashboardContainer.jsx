@@ -42,7 +42,17 @@ export default function DashboardContainer() {
   const liff = useLiff();
   const [activeStatus, setActiveStatus] = useState(null);
   const [cardFilter, setCardFilter] = useState({ pea: null, status: null });
-  const [highlightedItem, setHighlightedItem] = useState(null);
+  const [highlightedItem, setHighlightedItemRaw] = useState(null);
+  // เลือกข้อจากกราฟ KPI จะไม่เลื่อนหน้าจอไปที่ตารางรายละเอียด (ไม่ให้หน้าจอกระโดดทุกครั้งที่กด Next)
+  const [chartDriven, setChartDriven] = useState(false);
+  const setHighlightedItem = (v) => {
+    setChartDriven(false);
+    setHighlightedItemRaw(v);
+  };
+  const selectFromChart = (v) => {
+    setHighlightedItemRaw(v);
+    setChartDriven(true);
+  };
   const [dataStatus, setDataStatus] = useState('');
   const [editingStatus, setEditingStatus] = useState(false);
   const [statusDraft, setStatusDraft] = useState('');
@@ -462,7 +472,7 @@ export default function DashboardContainer() {
             <span className="w-1 h-5 bg-blue-600 rounded-full inline-block" />
             กราฟผลดำเนินงานและอันดับ
           </h2>
-          <KpiChartRanking rawData={activeData} items={items} selectedItem={highlightedItem} onSelectItem={setHighlightedItem} />
+          <KpiChartRanking rawData={activeData} items={items} selectedItem={highlightedItem} onSelectItem={selectFromChart} />
         </section>
 
         <section>
@@ -599,7 +609,7 @@ export default function DashboardContainer() {
             onSaveNote={handleSaveNote}
             highlightedItem={highlightedItem}
             onItemSelect={handleItemSelect}
-            highlightedItemFromComparison={highlightedItem}
+            highlightedItemFromComparison={chartDriven ? null : highlightedItem}
             lineProfile={liff.loggedIn ? liff.profile : null}
             canEditNotes={liff.canEditNotes}
           />

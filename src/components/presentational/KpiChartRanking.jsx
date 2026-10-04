@@ -172,8 +172,8 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="pea" interval={0} height={xHeight} tick={<XTick />} />
-            <YAxis width={big ? 90 : 78} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} scale={scale} domain={[0, 'auto']} />
-            <Tooltip formatter={(v, n) => [fmt(v), n]} />
+            <YAxis width={big ? 90 : 78} label={unit ? { value: unit, angle: -90, position: 'insideLeft', offset: big ? -6 : 4, style: { textAnchor: 'middle', fontSize: big ? 14 : 12, fill: '#6b7280' } } : undefined} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} scale={scale} domain={[0, 'auto']} />
+            <Tooltip formatter={(v, n) => [`${fmt(v)}${unit ? ' ' + unit : ''}`, n]} />
             <Legend verticalAlign="top" content={renderLegend} />
             <Area
               type="monotone" dataKey="result" name="ผลดำเนินงาน" stroke="#3b82f6" strokeWidth={3}
@@ -217,7 +217,7 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
           <tr>
             <th className="px-2 py-2 text-left"><Trophy className="w-4 h-4 text-amber-500 inline" /> อันดับ</th>
             {th('PEA', 'pea')}
-            {th('ผลดำเนินงาน', 'result')}
+            {th(unit ? `ผลดำเนินงาน (${unit})` : 'ผลดำเนินงาน', 'result')}
             {th('คิดเป็น %', 'pct')}
             {th('คะแนน KPIs', 'score')}
           </tr>
@@ -239,6 +239,7 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
 
   const btn = 'flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition hover:brightness-110 active:scale-95';
   const title = `${item} ${first?.description ?? ''}`;
+  const unit = first?.unit ? first.unit : '';
 
   const chartCard = (height, inModal) => (
     <div ref={inModal ? null : chartRef} className="bg-white rounded-2xl shadow p-5 min-w-0">
@@ -280,7 +281,10 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
         </div>
       </div>
       <p className={`${inModal ? 'text-lg' : 'text-base'} font-medium text-gray-800`}>กำลังแสดงผลของ &quot;{title}&quot;</p>
-      {first?.weight ? <p className={`${inModal ? 'text-base' : 'text-sm'} text-blue-600 mb-2`}>น้ำหนัก: {first.weight}</p> : null}
+      <p className={`${inModal ? 'text-base' : 'text-sm'} text-blue-600 mb-2`}>
+        {first?.weight ? <>น้ำหนัก: {first.weight}</> : null}
+        {unit ? <span className="ml-3 text-gray-700">หน่วย: <b>{unit}</b></span> : null}
+      </p>
       {chart(height, inModal)}
       <div className="mt-3 rounded-lg border-l-4 border-yellow-400 bg-yellow-50 p-3 text-sm">
         <div className="font-semibold">📝 หมายเหตุ:</div>
