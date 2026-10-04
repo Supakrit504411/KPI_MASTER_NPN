@@ -1,6 +1,6 @@
 import { Component, useMemo, useRef, useState, useEffect } from 'react';
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
 import { ChevronLeft, ChevronRight, Maximize2, X, Download, Trophy, ArrowUpDown } from 'lucide-react';
 
@@ -133,26 +133,51 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
     const f = isFocus(payload.pea);
     return <circle cx={cx} cy={cy} r={f ? 8 : n > 30 ? 3 : 5} fill={f ? '#f59e0b' : '#3b82f6'} stroke="#fff" strokeWidth={2} />;
   };
-  // ถ้าค่าต่ำสุดอยู่ใกล้แกน X ให้วางตัวเลขทั้งหมดไว้ด้านบนจุดแทน จะได้ไม่ทับป้ายชื่อแกน
-  const visibleKeys = ['result', 'targetYearly', 'targetLevel5'].filter((k) => !hidden[k]);
-  const tv = (v) => (scale === 'symlog' ? Math.log1p(Math.max(0, v)) : v);
-  const maxV = Math.max(1e-9, ...rows.flatMap((r) => visibleKeys.map((k) => tv(r[k]))));
-  const aboveMode = rows.some((r) => tv(Math.min(...visibleKeys.map((k) => r[k]))) / maxV < 0.2);
   const SERIES_KEYS = ['result', 'targetYearly', 'targetLevel5'];
   const LABEL_COLOR = { result: '#1e3a8a', targetYearly: '#047857', targetLevel5: '#b91c1c' };
-  const makeLabel = (key) => function SeriesLabel({ x, y, value, index }) {
+  const visibleKeys = SERIES_KEYS.filter((k) => !hidden[k]);
+
+  // คำนวณสเกลแกน Y เอง เพื่อรู้ตำแหน่งพิกเซลของแต่ละจุด แล้ววางตัวเลขให้ชิดจุดและไม่ทับกัน
+  const MARGIN = { top: 28, right: 24, left: 0, bottom: 10 };
+  const plotH = height - MARGIN.top - MARGIN.bottom - xHeight;
+  const tv = (v) => (scale === 'symlog' ? Math.log1p(Math.max(0, v)) : v);
+  const rawMax = Math.max(1e-9, ...rows.flatMap((r) => visibleKeys.map((k) => r[k])));
+  const niceStep = (() => {
+    const need = (rawMax * 1.08) / 5;
+    const exp = 10 ** Math.floor(Math.log10(need));
+    return [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * exp).find((st) => st >= need) ?? 10 * exp;
+  })();
+  const yMax = niceStep * 5;
+  const yTicks = scale === 'linear' ? [0, 1, 2, 3, 4, 5].map((i) => +(i * niceStep).toPrecision(12)) : undefined;
+  const pyOf = (v) => MARGIN.top + plotH * (1 - tv(v) / tv(yMax));
+  const FS = 13 + (big ? 2 : 0);
+  const gap = FS + 3;
+
+  // จัดตำแหน่งตัวเลขของจุดหนึ่ง: ชิดจุดก่อน ถ้าชนกันค่อยขยับขึ้น/ลงทีละขั้น
+  const layoutAt = (row) => {
+    const items = visibleKeys.map((k) => ({ k, py: pyOf(row[k]) })).sort((a, c) => a.py - c.py);
+    const placed = [];
+    const out = {};
+    for (const it of items) {
+      const cands = [];
+      for (let i = 0; i < 6; i += 1) cands.push(it.py - 9 - i * gap, it.py + FS + 6 + i * gap);
+      const ok = cands.find((c) => c > MARGIN.top - 12 && c < MARGIN.top + plotH + 2 && placed.every((q) => Math.abs(q - c) >= gap));
+      const y = ok ?? cands[0];
+      placed.push(y);
+      out[it.k] = y;
+    }
+    return out;
+  };
+  const makeLabel = (key) => function SeriesLabel({ x, value, index }) {
     const row = rows[index];
-    if (!row) return null; // index เก่าค้างตอนข้อมูลเปลี่ยน (เช่น เปลี่ยนตัวกรอง)
+    if (!row || value == null) return null; // index เก่าค้างตอนข้อมูลเปลี่ยน (เช่น เปลี่ยนตัวกรอง)
     const f = isFocus(row.pea);
     if (!showLabels && !f) return null;
-    // ค่าที่สูงสุดของจุดนั้นวางไว้ด้านบน ที่เหลือซ้อนลงด้านล่าง ไม่ให้ตัวเลขทับกัน
-    const order = SERIES_KEYS.filter((k) => !hidden[k]).sort((a, b) => row[b] - row[a]);
-    const r = order.indexOf(key);
-    const step = big ? 18 : 16;
-    const dy = aboveMode ? -10 - (order.length - 1 - r) * step : r === 0 ? -(f ? 14 : 10) : 6 + r * step;
+    const y = layoutAt(row)[key];
+    if (y == null) return null;
     const color = key === 'result' && f ? '#b45309' : LABEL_COLOR[key];
     return (
-      <text x={x} y={y + dy} dominantBaseline={aboveMode || r === 0 ? 'auto' : 'hanging'} textAnchor="middle" fontSize={(f && key === 'result' ? 15 : 13) + (big ? 2 : 0)} fontWeight={key === 'result' ? 800 : 700}
+      <text x={x} y={y} textAnchor="middle" fontSize={f && key === 'result' ? FS + 2 : FS} fontWeight={key === 'result' ? 800 : 700}
         fill={color} stroke="#fff" strokeWidth={3} paintOrder="stroke">
         {fmt(value)}
       </text>
@@ -161,9 +186,14 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
 
   return (
     <div>
+      {renderLegend({ payload: [
+        { dataKey: 'result', color: '#3b82f6', value: 'ผลดำเนินงาน' },
+        { dataKey: 'targetLevel5', color: '#ef4444', value: 'เป้าหมายระดับ 5' },
+        { dataKey: 'targetYearly', color: '#10b981', value: 'เป้าหมายรายปี' },
+      ] })}
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 56, right: 24, left: 0, bottom: 10 }}>
+          <ComposedChart data={rows} margin={MARGIN}>
             <defs>
               <linearGradient id="resFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -171,10 +201,9 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="pea" interval={0} height={xHeight} tick={<XTick />} />
-            <YAxis width={big ? 90 : 78} label={unit ? { value: unit, angle: -90, position: 'insideLeft', offset: big ? -6 : 4, style: { textAnchor: 'middle', fontSize: big ? 14 : 12, fill: '#6b7280' } } : undefined} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} scale={scale} domain={[0, 'auto']} />
+            <XAxis dataKey="pea" interval={0} padding={{ left: 28, right: 28 }} height={xHeight} tick={<XTick />} />
+            <YAxis width={big ? 90 : 78} label={unit ? { value: unit, angle: -90, position: 'insideLeft', offset: big ? -6 : 4, style: { textAnchor: 'middle', fontSize: big ? 14 : 12, fill: '#6b7280' } } : undefined} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} scale={scale} domain={[0, yMax]} ticks={yTicks} allowDataOverflow />
             <Tooltip formatter={(v, n) => [`${fmt(v)}${unit ? ' ' + unit : ''}`, n]} />
-            <Legend verticalAlign="top" content={renderLegend} />
             <Area
               type="monotone" dataKey="result" name="ผลดำเนินงาน" stroke="#3b82f6" strokeWidth={3}
               fill="url(#resFill)" hide={!!hidden.result} animationDuration={700}
