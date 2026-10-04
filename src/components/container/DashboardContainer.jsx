@@ -462,7 +462,7 @@ export default function DashboardContainer() {
             <span className="w-1 h-5 bg-blue-600 rounded-full inline-block" />
             กราฟผลดำเนินงานและอันดับ
           </h2>
-          <KpiChartRanking rawData={activeData} items={items} />
+          <KpiChartRanking rawData={activeData} items={items} selectedItem={highlightedItem} onSelectItem={setHighlightedItem} />
         </section>
 
         <section>

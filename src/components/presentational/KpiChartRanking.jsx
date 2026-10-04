@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Maximize2, X, Download, Trophy, ArrowUpDown 
 
 const FOCUS_RE = /^กฟ[สจ]\.?\s*นพ\.?$/;
 const isFocus = (pea) => FOCUS_RE.test(String(pea).trim());
-const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+const fmt = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 async function saveNode(node, filename) {
   if (!node) return;
@@ -23,8 +23,9 @@ async function saveNode(node, filename) {
  * - กดที่ legend เพื่อแสดง/ซ่อนแต่ละเส้น
  * - Previous/Next เลื่อนข้อ KPI, ขยายกราฟ, โหลดภาพกราฟ/ตาราง
  */
-export default function KpiChartRanking({ rawData, items }) {
-  const [idx, setIdx] = useState(0);
+export default function KpiChartRanking({ rawData, items, selectedItem, onSelectItem }) {
+  const [localItem, setLocalItem] = useState(null);
+  const [query, setQuery] = useState('');
   const [hidden, setHidden] = useState({});
   const [expanded, setExpanded] = useState(false);
   const [tableExpanded, setTableExpanded] = useState(false);
@@ -32,8 +33,11 @@ export default function KpiChartRanking({ rawData, items }) {
   const chartRef = useRef(null);
   const tableRef = useRef(null);
 
-  const safeIdx = items.length ? Math.min(idx, items.length - 1) : 0;
-  const item = items[safeIdx];
+  const current = onSelectItem ? selectedItem : localItem;
+  const item = items.includes(current) ? current : items[0];
+  const safeIdx = Math.max(0, items.indexOf(item));
+  const select = (it) => (onSelectItem ? onSelectItem(it) : setLocalItem(it));
+  const descOf = (it) => rawData.find((r) => r.item === it)?.description ?? '';
 
   const rows = useMemo(() => rawData.filter((r) => r.item === item), [rawData, item]);
   const first = rows[0];
@@ -71,12 +75,17 @@ export default function KpiChartRanking({ rawData, items }) {
 
   if (!items.length) return null;
 
-  const go = (d) => setIdx((safeIdx + d + items.length) % items.length);
+  const go = (d) => select(items[(safeIdx + d + items.length) % items.length]);
+  const onQuery = (v) => {
+    setQuery(v);
+    const hit = items.find((it) => it === v.trim());
+    if (hit) { select(hit); setQuery(''); }
+  };
   const toggleSort = (key) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: key === 'pea' ? 'asc' : 'desc' }));
 
   const renderLegend = ({ payload }) => (
-    <div className="flex justify-center gap-4 flex-wrap text-xs mb-1">
+    <div className="flex justify-center gap-4 flex-wrap text-sm mb-1">
       {payload.map((p) => {
         const off = hidden[p.dataKey];
         return (
@@ -94,11 +103,12 @@ export default function KpiChartRanking({ rawData, items }) {
     </div>
   );
 
+  const chart = (height, big) => {
   const n = rows.length;
   const angle = n > 30 ? -90 : n > 12 ? -60 : -25;
-  const tickSize = n > 30 ? 9 : n > 20 ? 10 : 11;
+  const tickSize = (n > 30 ? 9 : n > 20 ? 11 : 12) + (big ? 2 : 0);
   const showLabels = n <= 25;
-  const xHeight = n > 30 ? 95 : n > 12 ? 85 : 70;
+  const xHeight = (n > 30 ? 95 : n > 12 ? 85 : 70) + (big ? 15 : 0);
 
   const XTick = ({ x, y, payload }) => {
     const f = isFocus(payload.value);
@@ -118,14 +128,14 @@ export default function KpiChartRanking({ rawData, items }) {
     const f = isFocus(rows[index]?.pea);
     if (!showLabels && !f) return null;
     return (
-      <text x={x} y={y - (f ? 14 : 10)} textAnchor="middle" fontSize={f ? 14 : 12} fontWeight={800}
+      <text x={x} y={y - (f ? 14 : 10)} textAnchor="middle" fontSize={(f ? 15 : 13) + (big ? 2 : 0)} fontWeight={800}
         fill={f ? '#b45309' : '#1e3a8a'} stroke="#fff" strokeWidth={3} paintOrder="stroke">
         {fmt(value)}
       </text>
     );
   };
 
-  const chart = (height) => (
+  return (
     <div>
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -138,7 +148,7 @@ export default function KpiChartRanking({ rawData, items }) {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="pea" interval={0} height={xHeight} tick={<XTick />} />
-            <YAxis tick={{ fontSize: 11 }} domain={[0, (max) => Math.max(1, Math.ceil(max * 1.15))]} allowDecimals={false} />
+            <YAxis width={big ? 90 : 78} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} domain={[0, (max) => Math.max(1, Math.ceil(max * 1.15))]} allowDecimals={false} />
             <Tooltip formatter={(v, n) => [fmt(v), n]} />
             <Legend verticalAlign="top" content={renderLegend} />
             <Area
@@ -161,6 +171,7 @@ export default function KpiChartRanking({ rawData, items }) {
       </div>
     </div>
   );
+  };
 
   const th = (label, key) => (
     <th className="px-2 py-2 text-left font-semibold">
@@ -212,9 +223,31 @@ export default function KpiChartRanking({ rawData, items }) {
           <button type="button" className={`${btn} bg-blue-500`} onClick={() => saveNode(inModal ? document.getElementById('kpi-chart-modal') : chartRef.current, `kpi-${item}-chart.png`)}><Download className="w-4 h-4" />โหลดกราฟ</button>
         </div>
       </div>
-      <p className="text-sm text-gray-600">กำลังแสดงผลของ &quot;{title}&quot;</p>
-      {first?.weight ? <p className="text-sm text-blue-600 mb-2">น้ำหนัก: {first.weight}</p> : null}
-      {chart(height)}
+      <div className="flex flex-wrap items-center gap-2 mb-2" data-html2canvas-ignore>
+        <label className="text-sm text-gray-600">เลือกข้อ:</label>
+        <select
+          value={item}
+          onChange={(e) => select(e.target.value)}
+          className="border rounded-lg px-2 py-1 text-sm max-w-full sm:max-w-md"
+        >
+          {items.map((it) => <option key={it} value={it}>{it} — {descOf(it).slice(0, 60)}</option>)}
+        </select>
+        <input
+          type="text"
+          list={`kpi-items-${inModal ? 'm' : 'n'}`}
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          placeholder="พิมพ์เลขข้อ เช่น 4.1"
+          className="border rounded-lg px-2 py-1 text-sm w-40"
+        />
+        <datalist id={`kpi-items-${inModal ? 'm' : 'n'}`}>
+          {items.map((it) => <option key={it} value={it}>{descOf(it).slice(0, 60)}</option>)}
+        </datalist>
+        <span className="text-xs text-gray-400">{safeIdx + 1} / {items.length}</span>
+      </div>
+      <p className={`${inModal ? 'text-lg' : 'text-base'} font-medium text-gray-800`}>กำลังแสดงผลของ &quot;{title}&quot;</p>
+      {first?.weight ? <p className={`${inModal ? 'text-base' : 'text-sm'} text-blue-600 mb-2`}>น้ำหนัก: {first.weight}</p> : null}
+      {chart(height, inModal)}
       <div className="mt-3 rounded-lg border-l-4 border-yellow-400 bg-yellow-50 p-3 text-sm">
         <div className="font-semibold">📝 หมายเหตุ:</div>
         <div className="text-gray-600">{note || 'ไม่มีหมายเหตุ'}</div>
@@ -241,7 +274,7 @@ export default function KpiChartRanking({ rawData, items }) {
   return (
     <>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        {chartCard(320, false)}
+        {chartCard(340, false)}
         {tableCard(420, false)}
       </div>
 
