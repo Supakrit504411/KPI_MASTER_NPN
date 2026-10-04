@@ -27,9 +27,10 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
   const [localItem, setLocalItem] = useState(null);
   const [query, setQuery] = useState('');
   const [hidden, setHidden] = useState({});
+  const [scale, setScale] = useState('linear');
   const [expanded, setExpanded] = useState(false);
   const [tableExpanded, setTableExpanded] = useState(false);
-  const [sort, setSort] = useState({ key: 'result', dir: 'desc' });
+  const [sort, setSort] = useState({ key: 'pct', dir: 'desc' });
   const chartRef = useRef(null);
   const tableRef = useRef(null);
 
@@ -39,7 +40,14 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
   const select = (it) => (onSelectItem ? onSelectItem(it) : setLocalItem(it));
   const descOf = (it) => rawData.find((r) => r.item === it)?.description ?? '';
 
-  const rows = useMemo(() => rawData.filter((r) => r.item === item), [rawData, item]);
+  const rows = useMemo(
+    () => rawData.filter((r) => r.item === item).map((r) => ({
+      ...r,
+      // คิดเป็น % = ผล / เป้าหมายรายปี (ใช้ค่าจาก Sheet ก่อน ถ้าว่างให้คำนวณเอง)
+      pct: r.percentage || (r.targetYearly > 0 ? (r.result / r.targetYearly) * 100 : 0),
+    })),
+    [rawData, item],
+  );
   const first = rows[0];
 
   const ranked = useMemo(() => {
@@ -51,13 +59,14 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
     });
   }, [rows, sort]);
 
-  // อันดับคงที่ตามผลดำเนินงาน (ไม่เปลี่ยนตามการเรียงตาราง)
+  // อันดับคงที่ตามคิดเป็น % (ผลเท่ากันใช้ผลดำเนินงานตัดสิน, ไม่เปลี่ยนตามการเรียงตาราง)
   const rankOf = useMemo(() => {
     const m = new Map();
-    const sorted = [...rows].sort((a, b) => b.result - a.result);
+    const sorted = [...rows].sort((a, b) => b.pct - a.pct || b.result - a.result);
     sorted.forEach((r, i) => {
-      const tie = i > 0 && sorted[i - 1].result === r.result;
-      m.set(r.pea, r.result === 0 ? '-' : tie ? m.get(sorted[i - 1].pea) : i + 1);
+      const prev = sorted[i - 1];
+      const tie = i > 0 && prev.pct === r.pct && prev.result === r.result;
+      m.set(r.pea, r.pct === 0 && r.result === 0 ? '-' : tie ? m.get(prev.pea) : i + 1);
     });
     return m;
   }, [rows]);
@@ -124,12 +133,26 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
     const f = isFocus(payload.pea);
     return <circle cx={cx} cy={cy} r={f ? 8 : n > 30 ? 3 : 5} fill={f ? '#f59e0b' : '#3b82f6'} stroke="#fff" strokeWidth={2} />;
   };
-  const ResultLabel = ({ x, y, value, index }) => {
-    const f = isFocus(rows[index]?.pea);
+  // ถ้าค่าต่ำสุดอยู่ใกล้แกน X ให้วางตัวเลขทั้งหมดไว้ด้านบนจุดแทน จะได้ไม่ทับป้ายชื่อแกน
+  const visibleKeys = ['result', 'targetYearly', 'targetLevel5'].filter((k) => !hidden[k]);
+  const tv = (v) => (scale === 'symlog' ? Math.log1p(Math.max(0, v)) : v);
+  const maxV = Math.max(1e-9, ...rows.flatMap((r) => visibleKeys.map((k) => tv(r[k]))));
+  const aboveMode = rows.some((r) => tv(Math.min(...visibleKeys.map((k) => r[k]))) / maxV < 0.2);
+  const SERIES_KEYS = ['result', 'targetYearly', 'targetLevel5'];
+  const LABEL_COLOR = { result: '#1e3a8a', targetYearly: '#047857', targetLevel5: '#b91c1c' };
+  const makeLabel = (key) => function SeriesLabel({ x, y, value, index }) {
+    const row = rows[index];
+    const f = isFocus(row?.pea);
     if (!showLabels && !f) return null;
+    // ค่าที่สูงสุดของจุดนั้นวางไว้ด้านบน ที่เหลือซ้อนลงด้านล่าง ไม่ให้ตัวเลขทับกัน
+    const order = SERIES_KEYS.filter((k) => !hidden[k]).sort((a, b) => row[b] - row[a]);
+    const r = order.indexOf(key);
+    const step = big ? 18 : 16;
+    const dy = aboveMode ? -10 - (order.length - 1 - r) * step : r === 0 ? -(f ? 14 : 10) : 6 + r * step;
+    const color = key === 'result' && f ? '#b45309' : LABEL_COLOR[key];
     return (
-      <text x={x} y={y - (f ? 14 : 10)} textAnchor="middle" fontSize={(f ? 15 : 13) + (big ? 2 : 0)} fontWeight={800}
-        fill={f ? '#b45309' : '#1e3a8a'} stroke="#fff" strokeWidth={3} paintOrder="stroke">
+      <text x={x} y={y + dy} dominantBaseline={aboveMode || r === 0 ? 'auto' : 'hanging'} textAnchor="middle" fontSize={(f && key === 'result' ? 15 : 13) + (big ? 2 : 0)} fontWeight={key === 'result' ? 800 : 700}
+        fill={color} stroke="#fff" strokeWidth={3} paintOrder="stroke">
         {fmt(value)}
       </text>
     );
@@ -139,7 +162,7 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
     <div>
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 32, right: 24, left: 0, bottom: 10 }}>
+          <ComposedChart data={rows} margin={{ top: 56, right: 24, left: 0, bottom: 10 }}>
             <defs>
               <linearGradient id="resFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -148,7 +171,7 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="pea" interval={0} height={xHeight} tick={<XTick />} />
-            <YAxis width={big ? 90 : 78} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} domain={[0, (max) => Math.max(1, Math.ceil(max * 1.15))]} allowDecimals={false} />
+            <YAxis width={big ? 90 : 78} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} scale={scale} domain={[0, 'auto']} />
             <Tooltip formatter={(v, n) => [fmt(v), n]} />
             <Legend verticalAlign="top" content={renderLegend} />
             <Area
@@ -156,16 +179,20 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
               fill="url(#resFill)" hide={!!hidden.result} animationDuration={700}
               dot={<ResultDot />} activeDot={{ r: 9 }}
             >
-              <LabelList dataKey="result" content={<ResultLabel />} />
+              <LabelList dataKey="result" content={makeLabel('result')} />
             </Area>
             <Line
               type="monotone" dataKey="targetYearly" name="เป้าหมายรายปี" stroke="#10b981" strokeWidth={2}
               strokeDasharray="6 4" dot={n <= 25 ? { r: 3 } : false} hide={!!hidden.targetYearly} animationDuration={700}
-            />
+            >
+              <LabelList dataKey="targetYearly" content={makeLabel('targetYearly')} />
+            </Line>
             <Line
               type="monotone" dataKey="targetLevel5" name="เป้าหมายระดับ 5" stroke="#ef4444" strokeWidth={2}
               strokeDasharray="6 4" dot={n <= 25 ? { r: 3 } : false} hide={!!hidden.targetLevel5} animationDuration={700}
-            />
+            >
+              <LabelList dataKey="targetLevel5" content={makeLabel('targetLevel5')} />
+            </Line>
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -190,7 +217,7 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
             <th className="px-2 py-2 text-left"><Trophy className="w-4 h-4 text-amber-500 inline" /> อันดับ</th>
             {th('PEA', 'pea')}
             {th('ผลดำเนินงาน', 'result')}
-            {th('คิดเป็น %', 'percentage')}
+            {th('คิดเป็น %', 'pct')}
             {th('คะแนน KPIs', 'score')}
           </tr>
         </thead>
@@ -200,7 +227,7 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
               <td className="px-2 py-2">{rankOf.get(r.pea)}</td>
               <td className="px-2 py-2">{isFocus(r.pea) && '⭐ '}{r.pea}</td>
               <td className="px-2 py-2">{fmt(r.result)}</td>
-              <td className="px-2 py-2">{r.percentage.toFixed(1)}%</td>
+              <td className="px-2 py-2">{r.pct.toFixed(1)}%</td>
               <td className="px-2 py-2">{r.score.toFixed(2)}</td>
             </tr>
           ))}
@@ -244,6 +271,12 @@ export default function KpiChartRanking({ rawData, items, selectedItem, onSelect
           {items.map((it) => <option key={it} value={it}>{descOf(it).slice(0, 60)}</option>)}
         </datalist>
         <span className="text-xs text-gray-400">{safeIdx + 1} / {items.length}</span>
+        <div className="inline-flex rounded-lg border overflow-hidden text-sm ml-auto" title="Log เหมาะเมื่อค่าต่างกันมาก (ค่า 0 แสดงได้ปกติ)">
+          {[['linear', 'เส้นตรง'], ['symlog', 'Log']].map(([v, l]) => (
+            <button key={v} type="button" onClick={() => setScale(v)}
+              className={`px-3 py-1 ${scale === v ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
+          ))}
+        </div>
       </div>
       <p className={`${inModal ? 'text-lg' : 'text-base'} font-medium text-gray-800`}>กำลังแสดงผลของ &quot;{title}&quot;</p>
       {first?.weight ? <p className={`${inModal ? 'text-base' : 'text-sm'} text-blue-600 mb-2`}>น้ำหนัก: {first.weight}</p> : null}
