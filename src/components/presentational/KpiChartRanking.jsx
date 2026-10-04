@@ -4,6 +4,8 @@ import {
 } from 'recharts';
 import { ChevronLeft, ChevronRight, Maximize2, X, Download, Trophy, ArrowUpDown } from 'lucide-react';
 
+const FOCUS_RE = /^กฟ[สจ]\.?\s*นพ\.?$/;
+const isFocus = (pea) => FOCUS_RE.test(String(pea).trim());
 const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
 async function saveNode(node, filename) {
@@ -48,7 +50,11 @@ export default function KpiChartRanking({ rawData, items }) {
   // อันดับคงที่ตามผลดำเนินงาน (ไม่เปลี่ยนตามการเรียงตาราง)
   const rankOf = useMemo(() => {
     const m = new Map();
-    [...rows].sort((a, b) => b.result - a.result).forEach((r, i) => m.set(r.pea, i + 1));
+    const sorted = [...rows].sort((a, b) => b.result - a.result);
+    sorted.forEach((r, i) => {
+      const tie = i > 0 && sorted[i - 1].result === r.result;
+      m.set(r.pea, r.result === 0 ? '-' : tie ? m.get(sorted[i - 1].pea) : i + 1);
+    });
     return m;
   }, [rows]);
 
@@ -66,10 +72,6 @@ export default function KpiChartRanking({ rawData, items }) {
   if (!items.length) return null;
 
   const go = (d) => setIdx((safeIdx + d + items.length) % items.length);
-  const toggleSeries = (e) => {
-    const k = e.dataKey;
-    setHidden((h) => ({ ...h, [k]: !h[k] }));
-  };
   const toggleSort = (key) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: key === 'pea' ? 'asc' : 'desc' }));
 
@@ -92,13 +94,42 @@ export default function KpiChartRanking({ rawData, items }) {
     </div>
   );
 
-  const minW = Math.max(600, rows.length * 70);
+  const n = rows.length;
+  const angle = n > 30 ? -90 : n > 12 ? -60 : -25;
+  const tickSize = n > 30 ? 9 : n > 20 ? 10 : 11;
+  const showLabels = n <= 25;
+  const xHeight = n > 30 ? 95 : n > 12 ? 85 : 70;
+
+  const XTick = ({ x, y, payload }) => {
+    const f = isFocus(payload.value);
+    return (
+      <text x={x} y={y + 8} textAnchor="end" transform={`rotate(${angle} ${x} ${y + 8})`}
+        fontSize={tickSize} fontWeight={f ? 800 : 400} fill={f ? '#d97706' : '#4b5563'}>
+        {payload.value}
+      </text>
+    );
+  };
+  const ResultDot = ({ cx, cy, payload }) => {
+    if (cx == null || cy == null) return null;
+    const f = isFocus(payload.pea);
+    return <circle cx={cx} cy={cy} r={f ? 8 : n > 30 ? 3 : 5} fill={f ? '#f59e0b' : '#3b82f6'} stroke="#fff" strokeWidth={2} />;
+  };
+  const ResultLabel = ({ x, y, value, index }) => {
+    const f = isFocus(rows[index]?.pea);
+    if (!showLabels && !f) return null;
+    return (
+      <text x={x} y={y - (f ? 14 : 10)} textAnchor="middle" fontSize={f ? 14 : 12} fontWeight={800}
+        fill={f ? '#b45309' : '#1e3a8a'} stroke="#fff" strokeWidth={3} paintOrder="stroke">
+        {fmt(value)}
+      </text>
+    );
+  };
 
   const chart = (height) => (
-    <div className="overflow-x-auto">
-      <div style={{ minWidth: minW, height }}>
+    <div>
+      <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 24, right: 24, left: 0, bottom: 10 }}>
+          <ComposedChart data={rows} margin={{ top: 32, right: 24, left: 0, bottom: 10 }}>
             <defs>
               <linearGradient id="resFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -106,24 +137,24 @@ export default function KpiChartRanking({ rawData, items }) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="pea" interval={0} angle={-25} textAnchor="end" height={70} tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
+            <XAxis dataKey="pea" interval={0} height={xHeight} tick={<XTick />} />
+            <YAxis tick={{ fontSize: 11 }} domain={[0, (max) => Math.max(1, Math.ceil(max * 1.15))]} allowDecimals={false} />
             <Tooltip formatter={(v, n) => [fmt(v), n]} />
-            <Legend verticalAlign="top" content={renderLegend} onClick={toggleSeries} />
+            <Legend verticalAlign="top" content={renderLegend} />
             <Area
               type="monotone" dataKey="result" name="ผลดำเนินงาน" stroke="#3b82f6" strokeWidth={3}
               fill="url(#resFill)" hide={!!hidden.result} animationDuration={700}
-              dot={{ r: 5, fill: '#3b82f6' }} activeDot={{ r: 8 }}
+              dot={<ResultDot />} activeDot={{ r: 9 }}
             >
-              <LabelList dataKey="result" position="top" formatter={fmt} style={{ fontSize: 11, fontWeight: 600 }} />
+              <LabelList dataKey="result" content={<ResultLabel />} />
             </Area>
             <Line
               type="monotone" dataKey="targetYearly" name="เป้าหมายรายปี" stroke="#10b981" strokeWidth={2}
-              strokeDasharray="6 4" dot={{ r: 3 }} hide={!!hidden.targetYearly} animationDuration={700}
+              strokeDasharray="6 4" dot={n <= 25 ? { r: 3 } : false} hide={!!hidden.targetYearly} animationDuration={700}
             />
             <Line
               type="monotone" dataKey="targetLevel5" name="เป้าหมายระดับ 5" stroke="#ef4444" strokeWidth={2}
-              strokeDasharray="6 4" dot={{ r: 3 }} hide={!!hidden.targetLevel5} animationDuration={700}
+              strokeDasharray="6 4" dot={n <= 25 ? { r: 3 } : false} hide={!!hidden.targetLevel5} animationDuration={700}
             />
           </ComposedChart>
         </ResponsiveContainer>
@@ -154,9 +185,9 @@ export default function KpiChartRanking({ rawData, items }) {
         </thead>
         <tbody>
           {ranked.map((r, i) => (
-            <tr key={r.pea + i} className={i % 2 ? 'bg-gray-50' : ''}>
+            <tr key={r.pea + i} className={isFocus(r.pea) ? 'bg-amber-100 font-bold text-amber-800' : i % 2 ? 'bg-gray-50' : ''}>
               <td className="px-2 py-2">{rankOf.get(r.pea)}</td>
-              <td className="px-2 py-2">{r.pea}</td>
+              <td className="px-2 py-2">{isFocus(r.pea) && '⭐ '}{r.pea}</td>
               <td className="px-2 py-2">{fmt(r.result)}</td>
               <td className="px-2 py-2">{r.percentage.toFixed(1)}%</td>
               <td className="px-2 py-2">{r.score.toFixed(2)}</td>
