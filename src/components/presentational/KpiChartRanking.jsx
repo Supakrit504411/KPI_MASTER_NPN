@@ -1,0 +1,235 @@
+import { useMemo, useRef, useState, useEffect } from 'react';
+import {
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
+} from 'recharts';
+import { ChevronLeft, ChevronRight, Maximize2, X, Download, Trophy, ArrowUpDown } from 'lucide-react';
+
+const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+
+async function saveNode(node, filename) {
+  if (!node) return;
+  const { toPng } = await import('html-to-image');
+  const url = await toPng(node, { pixelRatio: 2, backgroundColor: '#ffffff' });
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+}
+
+/**
+ * กราฟผลการดำเนินงานรายข้อ KPI + ตารางอันดับ
+ * - กดที่ legend เพื่อแสดง/ซ่อนแต่ละเส้น
+ * - Previous/Next เลื่อนข้อ KPI, ขยายกราฟ, โหลดภาพกราฟ/ตาราง
+ */
+export default function KpiChartRanking({ rawData, items }) {
+  const [idx, setIdx] = useState(0);
+  const [hidden, setHidden] = useState({});
+  const [expanded, setExpanded] = useState(false);
+  const [tableExpanded, setTableExpanded] = useState(false);
+  const [sort, setSort] = useState({ key: 'result', dir: 'desc' });
+  const chartRef = useRef(null);
+  const tableRef = useRef(null);
+
+  const safeIdx = items.length ? Math.min(idx, items.length - 1) : 0;
+  const item = items[safeIdx];
+
+  const rows = useMemo(() => rawData.filter((r) => r.item === item), [rawData, item]);
+  const first = rows[0];
+
+  const ranked = useMemo(() => {
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const av = a[sort.key];
+      const bv = b[sort.key];
+      return typeof av === 'string' ? av.localeCompare(bv, 'th') * dir : (av - bv) * dir;
+    });
+  }, [rows, sort]);
+
+  // อันดับคงที่ตามผลดำเนินงาน (ไม่เปลี่ยนตามการเรียงตาราง)
+  const rankOf = useMemo(() => {
+    const m = new Map();
+    [...rows].sort((a, b) => b.result - a.result).forEach((r, i) => m.set(r.pea, i + 1));
+    return m;
+  }, [rows]);
+
+  const note = rows.map((r) => r.note).find(Boolean);
+
+  useEffect(() => {
+    if (!expanded && !tableExpanded) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setExpanded(false); setTableExpanded(false); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expanded, tableExpanded]);
+
+  if (!items.length) return null;
+
+  const go = (d) => setIdx((safeIdx + d + items.length) % items.length);
+  const toggleSeries = (e) => {
+    const k = e.dataKey;
+    setHidden((h) => ({ ...h, [k]: !h[k] }));
+  };
+  const toggleSort = (key) =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: key === 'pea' ? 'asc' : 'desc' }));
+
+  const renderLegend = ({ payload }) => (
+    <div className="flex justify-center gap-4 flex-wrap text-xs mb-1">
+      {payload.map((p) => {
+        const off = hidden[p.dataKey];
+        return (
+          <button
+            key={p.dataKey}
+            type="button"
+            onClick={() => setHidden((h) => ({ ...h, [p.dataKey]: !h[p.dataKey] }))}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md border transition ${off ? 'opacity-40 line-through bg-gray-50' : 'bg-white shadow-sm'}`}
+          >
+            <span className="inline-block w-5 h-0 border-t-2" style={{ borderColor: p.color, borderStyle: p.dataKey === 'result' ? 'solid' : 'dashed' }} />
+            {p.value}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const minW = Math.max(600, rows.length * 70);
+
+  const chart = (height) => (
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: minW, height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={rows} margin={{ top: 24, right: 24, left: 0, bottom: 10 }}>
+            <defs>
+              <linearGradient id="resFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.03} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="pea" interval={0} angle={-25} textAnchor="end" height={70} tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v, n) => [fmt(v), n]} />
+            <Legend verticalAlign="top" content={renderLegend} onClick={toggleSeries} />
+            <Area
+              type="monotone" dataKey="result" name="ผลดำเนินงาน" stroke="#3b82f6" strokeWidth={3}
+              fill="url(#resFill)" hide={!!hidden.result} animationDuration={700}
+              dot={{ r: 5, fill: '#3b82f6' }} activeDot={{ r: 8 }}
+            >
+              <LabelList dataKey="result" position="top" formatter={fmt} style={{ fontSize: 11, fontWeight: 600 }} />
+            </Area>
+            <Line
+              type="monotone" dataKey="targetYearly" name="เป้าหมายรายปี" stroke="#10b981" strokeWidth={2}
+              strokeDasharray="6 4" dot={{ r: 3 }} hide={!!hidden.targetYearly} animationDuration={700}
+            />
+            <Line
+              type="monotone" dataKey="targetLevel5" name="เป้าหมายระดับ 5" stroke="#ef4444" strokeWidth={2}
+              strokeDasharray="6 4" dot={{ r: 3 }} hide={!!hidden.targetLevel5} animationDuration={700}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+
+  const th = (label, key) => (
+    <th className="px-2 py-2 text-left font-semibold">
+      <button type="button" onClick={() => toggleSort(key)} className="inline-flex items-center gap-1 hover:text-blue-600">
+        {label}
+        <ArrowUpDown className={`w-3 h-3 ${sort.key === key ? 'text-blue-600' : 'text-gray-300'}`} />
+      </button>
+    </th>
+  );
+
+  const table = (maxH) => (
+    <div className="overflow-y-auto" style={{ maxHeight: maxH }}>
+      <table className="w-full text-sm">
+        <thead className="sticky top-0 bg-white shadow-[0_1px_0_#e5e7eb]">
+          <tr>
+            <th className="px-2 py-2 text-left"><Trophy className="w-4 h-4 text-amber-500 inline" /> อันดับ</th>
+            {th('PEA', 'pea')}
+            {th('ผลดำเนินงาน', 'result')}
+            {th('คิดเป็น %', 'percentage')}
+            {th('คะแนน KPIs', 'score')}
+          </tr>
+        </thead>
+        <tbody>
+          {ranked.map((r, i) => (
+            <tr key={r.pea + i} className={i % 2 ? 'bg-gray-50' : ''}>
+              <td className="px-2 py-2">{rankOf.get(r.pea)}</td>
+              <td className="px-2 py-2">{r.pea}</td>
+              <td className="px-2 py-2">{fmt(r.result)}</td>
+              <td className="px-2 py-2">{r.percentage.toFixed(1)}%</td>
+              <td className="px-2 py-2">{r.score.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const btn = 'flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition hover:brightness-110 active:scale-95';
+  const title = `${item} ${first?.description ?? ''}`;
+
+  const chartCard = (height, inModal) => (
+    <div ref={inModal ? null : chartRef} className="bg-white rounded-2xl shadow p-5 min-w-0">
+      <div className="flex items-start justify-between gap-2 flex-wrap mb-2">
+        <h3 className="font-semibold text-gray-800">📈 กราฟแสดงผลการดำเนินงาน</h3>
+        <div className="flex gap-2" data-html2canvas-ignore>
+          <button type="button" className={`${btn} bg-gray-500`} onClick={() => go(-1)}><ChevronLeft className="w-4 h-4" />Previous</button>
+          <button type="button" className={`${btn} bg-gray-500`} onClick={() => go(1)}>Next<ChevronRight className="w-4 h-4" /></button>
+          {!inModal && <button type="button" className={`${btn} bg-blue-500`} onClick={() => setExpanded(true)}><Maximize2 className="w-4 h-4" />ขยายกราฟ</button>}
+          <button type="button" className={`${btn} bg-blue-500`} onClick={() => saveNode(inModal ? document.getElementById('kpi-chart-modal') : chartRef.current, `kpi-${item}-chart.png`)}><Download className="w-4 h-4" />โหลดกราฟ</button>
+        </div>
+      </div>
+      <p className="text-sm text-gray-600">กำลังแสดงผลของ &quot;{title}&quot;</p>
+      {first?.weight ? <p className="text-sm text-blue-600 mb-2">น้ำหนัก: {first.weight}</p> : null}
+      {chart(height)}
+      <div className="mt-3 rounded-lg border-l-4 border-yellow-400 bg-yellow-50 p-3 text-sm">
+        <div className="font-semibold">📝 หมายเหตุ:</div>
+        <div className="text-gray-600">{note || 'ไม่มีหมายเหตุ'}</div>
+      </div>
+    </div>
+  );
+
+  const tableCard = (maxH, inModal) => (
+    <div ref={inModal ? null : tableRef} className="bg-white rounded-2xl shadow p-5 min-w-0">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <h3 className="font-semibold text-gray-800 text-lg">ผลการดำเนินงาน</h3>
+          <p className="text-xs text-gray-500">หัวข้อ KPIs: {title}</p>
+        </div>
+        <div className="flex gap-2" data-html2canvas-ignore>
+          {!inModal && <button type="button" className={`${btn} bg-emerald-500`} onClick={() => setTableExpanded(true)}><Maximize2 className="w-4 h-4" />ขยาย</button>}
+          <button type="button" className={`${btn} bg-emerald-500`} onClick={() => saveNode(inModal ? document.getElementById('kpi-table-modal') : tableRef.current, `kpi-${item}-ranking.png`)}><Download className="w-4 h-4" />โหลด</button>
+        </div>
+      </div>
+      {table(maxH)}
+    </div>
+  );
+
+  return (
+    <>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        {chartCard(320, false)}
+        {tableCard(420, false)}
+      </div>
+
+      {expanded && (
+        <div className="fixed inset-0 z-50 bg-black/60 p-4 overflow-auto" onClick={() => setExpanded(false)}>
+          <div id="kpi-chart-modal" className="relative max-w-6xl mx-auto bg-white rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="absolute top-2 right-2 z-10 p-1 rounded-full bg-gray-100 hover:bg-gray-200" onClick={() => setExpanded(false)}><X className="w-5 h-5" /></button>
+            {chartCard(Math.round(window.innerHeight * 0.6), true)}
+          </div>
+        </div>
+      )}
+      {tableExpanded && (
+        <div className="fixed inset-0 z-50 bg-black/60 p-4 overflow-auto" onClick={() => setTableExpanded(false)}>
+          <div id="kpi-table-modal" className="relative max-w-3xl mx-auto bg-white rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="absolute top-2 right-2 z-10 p-1 rounded-full bg-gray-100 hover:bg-gray-200" onClick={() => setTableExpanded(false)}><X className="w-5 h-5" /></button>
+            {tableCard(Math.round(window.innerHeight * 0.75), true)}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

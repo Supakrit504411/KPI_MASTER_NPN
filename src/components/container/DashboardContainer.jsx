@@ -10,6 +10,7 @@ import GroupFilter from '../presentational/GroupFilter';
 import PEAFilter from '../presentational/PEAFilter';
 import StatusFilter from '../presentational/StatusFilter';
 import ItemComparison from '../presentational/ItemComparison';
+import KpiChartRanking from '../presentational/KpiChartRanking';
 import DataTable from '../presentational/DataTable';
 import LoadingSpinner from '../presentational/LoadingSpinner';
 import ErrorMessage from '../presentational/ErrorMessage';
@@ -454,6 +455,14 @@ export default function DashboardContainer() {
             allData={activeData}
             onScreenshot={() => handleScreenshot(scoreTableRef)}
           />
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <span className="w-1 h-5 bg-blue-600 rounded-full inline-block" />
+            กราฟผลดำเนินงานและอันดับ
+          </h2>
+          <KpiChartRanking rawData={activeData} items={items} />
         </section>
 
         <section>
