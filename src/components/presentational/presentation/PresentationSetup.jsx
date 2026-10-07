@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { X, Search } from 'lucide-react';
-import { levelOf, LEVEL_STYLE } from '../../../utils/presentation';
+import { X, Search, ImagePlus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { levelOf, LEVEL_STYLE, ITEM_FILTERS, toImageUrl, fileToCoverDataUrl } from '../../../utils/presentation';
 
 const MAX_FOCUS = 6;
 
-export default function PresentationSetup({ index, allPeas, focusPeas, deckItems, onChangePeas, onChangeItems, onSelectFailed, onClose }) {
+export default function PresentationSetup({ index, allPeas, focusPeas, deckItems, itemFilter, onChangeFilter, onChangePeas, onChangeItems, localCover, sheetCover, onChangeLocalCover, onClose }) {
   const [q, setQ] = useState('');
   const entries = [...index.values()];
   const peaMatches = allPeas.filter((p) => p.includes(q.trim()));
@@ -19,6 +20,19 @@ export default function PresentationSetup({ index, allPeas, focusPeas, deckItems
     onChangeItems(entries.map((e) => e.item).filter((i) => next.includes(i)));
   };
 
+  const handleCoverFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      onChangeLocalCover(await fileToCoverDataUrl(file));
+      toast.success('ตั้งหน้าปกจากไฟล์แล้ว');
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+  const previewSrc = localCover || toImageUrl(sheetCover);
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex justify-end" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl h-full bg-white shadow-2xl flex flex-col">
@@ -28,6 +42,36 @@ export default function PresentationSetup({ index, allPeas, focusPeas, deckItems
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <section>
+            <h4 className="font-semibold text-slate-700 mb-2">หน้าปก</h4>
+            <div className="flex gap-4">
+              <div className="w-48 aspect-video rounded-lg border bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center text-xs text-slate-400">
+                {previewSrc ? <img src={previewSrc} alt="" className="w-full h-full object-contain bg-black" referrerPolicy="no-referrer" /> : 'ปกสำเร็จรูป'}
+              </div>
+              <div className="flex-1 space-y-2 text-xs text-slate-600">
+                <div>
+                  ใช้อยู่:{' '}
+                  <b>{localCover ? 'ไฟล์จากเครื่องนี้' : sheetCover ? 'ลิงก์จากชีต Config' : 'ปกสำเร็จรูป'}</b>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="px-2.5 py-1 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 cursor-pointer flex items-center gap-1">
+                    <ImagePlus className="w-3.5 h-3.5" /> เลือกไฟล์รูป
+                    <input type="file" accept="image/*" className="hidden" onChange={handleCoverFile} />
+                  </label>
+                  {localCover && (
+                    <button type="button" onClick={() => onChangeLocalCover('')} className="px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50 flex items-center gap-1">
+                      <Trash2 className="w-3.5 h-3.5" /> ลบไฟล์ในเครื่อง
+                    </button>
+                  )}
+                </div>
+                <p className="text-slate-500 leading-relaxed">
+                  ไฟล์จากเครื่องจะเห็นเฉพาะเครื่องนี้ · ถ้าต้องการให้ทุกคนเห็น ใส่ลิงก์รูปในชีต <b>Config</b> คอลัมน์ A = <code>coverImage</code>, คอลัมน์ B = ลิงก์
+                  (ลิงก์ Google Drive ต้องแชร์เป็น "ทุกคนที่มีลิงก์")
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section>
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-semibold text-slate-700">หน่วยงานที่เปรียบเทียบ ({focusPeas.length}/{MAX_FOCUS})</h4>
@@ -65,11 +109,29 @@ export default function PresentationSetup({ index, allPeas, focusPeas, deckItems
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <h4 className="font-semibold text-slate-700">ตัวชี้วัดที่นำเสนอ ({deckItems.length}/{entries.length})</h4>
               <div className="flex gap-2 text-xs">
-                <button type="button" onClick={onSelectFailed} className="px-2.5 py-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50">เฉพาะข้อที่ยังไม่ผ่าน</button>
-                <button type="button" onClick={() => onChangeItems(entries.map((e) => e.item))} className="px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">ทั้งหมด</button>
+                {Object.entries(ITEM_FILTERS).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => onChangeFilter(mode)}
+                    className={`px-2.5 py-1 rounded-lg border ${itemFilter === mode ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 hover:bg-slate-50'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
                 <button type="button" onClick={() => onChangeItems([])} className="px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">ล้าง</button>
               </div>
             </div>
+            <p className="text-xs text-slate-500 mb-2">
+              {itemFilter === 'custom'
+                ? 'เลือกเองรายข้อ'
+                : itemFilter === 'passed'
+                  ? 'ข้อที่ผ่าน = หน่วยงานที่เลือกได้ 5 คะแนนครบทุกหน่วย'
+                  : itemFilter === 'failed'
+                    ? 'ข้อที่ไม่ผ่าน = มีหน่วยงานที่เลือกได้ต่ำกว่า 5 คะแนนอย่างน้อย 1 หน่วย'
+                    : 'แสดงทุกข้อ'}
+              {' · ติ๊กเพิ่ม/เอาออกรายข้อได้'}
+            </p>
             <ul className="divide-y border rounded-lg">
               {entries.map((e) => (
                 <li key={e.item}>

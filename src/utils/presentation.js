@@ -59,11 +59,51 @@ export function buildPEAOverview(data, focusPeas) {
   };
 }
 
-// ข้อที่ยังไม่ผ่านของ PEA ที่เลือก (ทุกข้อที่มีผลแล้วแต่คะแนน < 5)
-export function defaultFocusItems(index, focusPeas) {
+export const ITEM_FILTERS = {
+  all: 'ทั้งหมด',
+  passed: 'ข้อที่ผ่าน',
+  failed: 'ข้อที่ไม่ผ่าน',
+};
+
+// all = ทุกข้อ, failed = มี PEA ที่เลือกอย่างน้อย 1 หน่วยไม่ผ่าน, passed = PEA ที่เลือกผ่านครบทุกหน่วย
+export function filterItems(index, focusPeas, mode) {
   const items = [];
   for (const entry of index.values()) {
-    if (focusPeas.some((p) => entry.rows[p] && entry.rows[p].status === 'failed')) items.push(entry.item);
+    const statuses = focusPeas.map((p) => entry.rows[p]?.status ?? 'pending');
+    const keep =
+      mode === 'failed' ? statuses.includes('failed')
+        : mode === 'passed' ? statuses.length > 0 && statuses.every((s) => s === 'passed')
+          : true;
+    if (keep) items.push(entry.item);
   }
   return items;
+}
+
+// ลิงก์แชร์ Google Drive แสดงเป็นรูปตรงๆ ไม่ได้ — แปลงเป็นลิงก์รูปภาพ
+export function toImageUrl(url) {
+  const value = String(url || '').trim();
+  const m = value.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]+)/);
+  return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w1920` : value;
+}
+
+// ย่อรูปที่เลือกจากเครื่องให้ไม่เกิน 1920x1080 เพื่อเก็บใน localStorage ได้
+export function fileToCoverDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const src = URL.createObjectURL(file);
+    img.onload = () => {
+      const ratio = Math.min(1, 1920 / img.width, 1080 / img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(src);
+      resolve(canvas.toDataURL('image/jpeg', 0.9));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(src);
+      reject(new Error('ไม่สามารถอ่านไฟล์รูปได้'));
+    };
+    img.src = src;
+  });
 }

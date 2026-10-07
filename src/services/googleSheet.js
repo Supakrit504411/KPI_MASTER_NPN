@@ -214,4 +214,23 @@ export async function logAccess(profile) {
   }
 }
 
+/**
+ * อ่านลิงก์รูปหน้าปกจากชีต Config (คอลัมน์ A = coverImage, คอลัมน์ B = ลิงก์)
+ * ดึงเฉพาะแถวนั้นแถวเดียวผ่าน gviz query
+ */
+export async function getCoverImageUrl() {
+  try {
+    const tq = encodeURIComponent("select B where A = 'coverImage'");
+    const url = `${BASE_URL}?tqx=out:csv&sheet=Config&tq=${tq}`;
+    const res = await fetch(url);
+    if (!res.ok) return '';
+    const text = (await res.text()).trim();
+    // บรรทัดแรกอาจเป็นหัวตาราง — เอาค่าที่เป็น URL
+    const cell = text.split(/\r?\n/).map((l) => l.replace(/^"|"$/g, '').trim()).find((v) => /^https?:\/\//.test(v));
+    return cell || '';
+  } catch {
+    return '';
+  }
+}
+
 export { SHEET_ID, SHEET_NAME };

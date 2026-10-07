@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Maximize, Minimize, Settings2, X, LayoutGrid } from 'lucide-react';
 import { getUniquePEAs, MONITOR_PEAS } from '../../utils/parseCSV';
-import { buildItemIndex, buildPEAOverview, defaultFocusItems } from '../../utils/presentation';
+import { buildItemIndex, buildPEAOverview, filterItems, ITEM_FILTERS, toImageUrl } from '../../utils/presentation';
+import { getCoverImageUrl } from '../../services/googleSheet';
 import CoverSlide from '../presentational/presentation/CoverSlide';
+import ImageCoverSlide from '../presentational/presentation/ImageCoverSlide';
 import OverviewSlide from '../presentational/presentation/OverviewSlide';
 import MatrixSlide from '../presentational/presentation/MatrixSlide';
 import KpiSlide from '../presentational/presentation/KpiSlide';
@@ -12,6 +14,7 @@ import PresentationSetup from '../presentational/presentation/PresentationSetup'
 const SLIDE_W = 1600;
 const SLIDE_H = 900;
 const STORAGE_KEY = 'pea-presentation-v1';
+const COVER_KEY = 'pea-presentation-cover';
 
 function loadSaved() {
   try {
@@ -41,28 +44,58 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
     const list = (saved.focusPeas || MONITOR_PEAS).filter((p) => allPeas.includes(p));
     return list.length ? list : allPeas.slice(0, 4);
   });
-  const [deckItems, setDeckItems] = useState(() => {
-    const list = (saved.deckItems || []).filter((i) => index.has(i));
-    if (list.length) return list;
-    const failed = defaultFocusItems(index, focusPeas);
-    return failed.length ? failed : [...index.keys()];
-  });
+  // itemFilter: all | passed | failed | custom (เลือกเองรายข้อ)
+  const [itemFilter, setItemFilter] = useState(() => (saved.itemFilter in ITEM_FILTERS || saved.itemFilter === 'custom' ? saved.itemFilter : 'failed'));
+  const [customItems, setCustomItems] = useState(() => (saved.deckItems || []).filter((i) => index.has(i)));
+  const deckItems = useMemo(
+    () => (itemFilter === 'custom' ? customItems : filterItems(index, focusPeas, itemFilter)),
+    [itemFilter, customItems, index, focusPeas],
+  );
+  const setDeckItems = useCallback((next) => {
+    setCustomItems((prev) => (typeof next === 'function' ? next(prev) : next));
+    setItemFilter('custom');
+  }, []);
   const [current, setCurrent] = useState(0);
   const [drill, setDrill] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [pendingJump, setPendingJump] = useState(null);
+  // หน้าปก: รูปที่เลือกจากเครื่องนี้ (มาก่อน) > ลิงก์ในชีต Config (coverImage) > ปกสำเร็จรูป
+  const [localCover, setLocalCover] = useState(() => {
+    try {
+      return localStorage.getItem(COVER_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
+  const [sheetCover, setSheetCover] = useState('');
   const hideTimer = useRef(null);
   const scale = useFitScale();
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ focusPeas, deckItems }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ focusPeas, deckItems, itemFilter }));
     } catch {
       // ไม่บันทึกได้ก็ใช้งานต่อได้ตามปกติ
     }
-  }, [focusPeas, deckItems]);
+  }, [focusPeas, deckItems, itemFilter]);
+
+  useEffect(() => {
+    getCoverImageUrl().then(setSheetCover);
+  }, []);
+
+  const changeLocalCover = useCallback((dataUrl) => {
+    setLocalCover(dataUrl);
+    try {
+      if (dataUrl) localStorage.setItem(COVER_KEY, dataUrl);
+      else localStorage.removeItem(COVER_KEY);
+    } catch {
+      // พื้นที่เก็บเต็ม — ยังแสดงได้จนกว่าจะปิดหน้า
+    }
+  }, []);
+
+  const coverSrc = localCover || toImageUrl(sheetCover);
 
   const slides = useMemo(() => [
     { key: 'cover', type: 'cover' },
@@ -84,10 +117,10 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
   const jumpToItem = useCallback((item) => {
     if (!deckItems.includes(item)) {
       const order = [...index.keys()];
-      setDeckItems((prev) => order.filter((i) => i === item || prev.includes(i)));
+      setDeckItems(order.filter((i) => i === item || deckItems.includes(i)));
     }
     setPendingJump(item);
-  }, [deckItems, index]);
+  }, [deckItems, index, setDeckItems]);
 
   useEffect(() => {
     if (!pendingJump) return;
@@ -151,8 +184,10 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
 
   const renderSlide = () => {
     switch (slide.type) {
-      case 'cover':
-        return <CoverSlide dataStatus={dataStatus} focusPeas={focusPeas} itemCount={deckItems.length} />;
+      case 'cover': {
+        const builtIn = <CoverSlide dataStatus={dataStatus} focusPeas={focusPeas} itemCount={deckItems.length} />;
+        return coverSrc ? <ImageCoverSlide src={coverSrc} fallback={builtIn} /> : builtIn;
+      }
       case 'overview':
         return <OverviewSlide overview={buildPEAOverview(rawData, focusPeas)} footer={footer} />;
       case 'matrix':
@@ -191,6 +226,18 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
         <span className="text-sm tabular-nums px-2 min-w-16 text-center">{safeCurrent + 1} / {slides.length}</span>
         <CtrlBtn title="ถัดไป (→)" onClick={() => go(safeCurrent + 1)}><ChevronRight className="w-5 h-5" /></CtrlBtn>
         <div className="w-px h-5 bg-white/20 mx-1" />
+        {Object.entries(ITEM_FILTERS).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            title="เลือกข้อที่นำเสนอ"
+            onClick={() => { setItemFilter(mode); setCurrent(0); }}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${itemFilter === mode ? 'bg-amber-400 text-blue-900' : 'hover:bg-white/15'}`}
+          >
+            {label}
+          </button>
+        ))}
+        <div className="w-px h-5 bg-white/20 mx-1" />
         <CtrlBtn title="แผนที่ตัวชี้วัด (M)" onClick={() => go(matrixIndex)}><LayoutGrid className="w-5 h-5" /></CtrlBtn>
         <CtrlBtn title="ตั้งค่า (S)" onClick={() => setShowSetup(true)}><Settings2 className="w-5 h-5" /></CtrlBtn>
         <CtrlBtn title="เต็มจอ (F)" onClick={toggleFullscreen}>{isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}</CtrlBtn>
@@ -203,9 +250,13 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
           allPeas={allPeas}
           focusPeas={focusPeas}
           deckItems={deckItems}
+          itemFilter={itemFilter}
+          onChangeFilter={setItemFilter}
           onChangePeas={setFocusPeas}
           onChangeItems={setDeckItems}
-          onSelectFailed={() => setDeckItems(defaultFocusItems(index, focusPeas))}
+          localCover={localCover}
+          sheetCover={sheetCover}
+          onChangeLocalCover={changeLocalCover}
           onClose={() => setShowSetup(false)}
         />
       )}
