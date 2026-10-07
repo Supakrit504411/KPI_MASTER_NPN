@@ -1,6 +1,6 @@
-import { Zap, RefreshCw, LogIn, LogOut } from 'lucide-react';
+import { Zap, RefreshCw, LogIn, LogOut, Presentation } from 'lucide-react';
 
-export default function Header({ onRefresh, isLoading, liff }) {
+export default function Header({ onRefresh, isLoading, liff, onPresent }) {
   return (
     <header className="bg-gradient-to-r from-blue-800 to-blue-600 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -49,6 +49,18 @@ export default function Header({ onRefresh, isLoading, liff }) {
                   LINE Login
                 </button>
               )
+            )}
+            {onPresent && (
+              <button
+                onClick={onPresent}
+                disabled={isLoading}
+                className="flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-blue-900
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           px-4 py-2 rounded-lg transition-colors text-sm font-semibold"
+              >
+                <Presentation className="w-4 h-4" />
+                นำเสนอ
+              </button>
             )}
             <button
               onClick={onRefresh}
