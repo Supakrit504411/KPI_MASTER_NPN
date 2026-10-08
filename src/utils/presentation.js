@@ -45,6 +45,27 @@ export function rankItemRows(entry) {
   return { rows, ranks, count: rows.length };
 }
 
+// เรียงอันดับ "ภายในกลุ่ม (Group) เดียวกัน" — หน่วยงานเทียบกันเฉพาะหน่วยที่อยู่กลุ่มเดียวกัน
+// คืน ranks[pea] = อันดับในกลุ่ม, counts[pea] = จำนวนหน่วยงานในกลุ่มนั้นที่มีผลแล้ว
+export function rankItemRowsByGroup(entry) {
+  const byGroup = {};
+  for (const row of Object.values(entry.rows)) {
+    if (row.status === 'pending') continue;
+    (byGroup[row.group] ||= []).push(row);
+  }
+  const ranks = {};
+  const counts = {};
+  for (const rows of Object.values(byGroup)) {
+    rows.sort((a, b) => b.score - a.score || b.percentage - a.percentage);
+    rows.forEach((r, i) => {
+      const prev = rows[i - 1];
+      ranks[r.pea] = prev && prev.score === r.score && prev.percentage === r.percentage ? ranks[prev.pea] : i + 1;
+      counts[r.pea] = rows.length;
+    });
+  }
+  return { ranks, counts };
+}
+
 // สรุปทั้งหน่วยงาน + อันดับ % คะแนนสุทธิ เทียบกับทุก PEA
 export function buildPEAOverview(data, focusPeas) {
   const all = getUniquePEAs(data)

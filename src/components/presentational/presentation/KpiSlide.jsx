@@ -1,12 +1,26 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, useXAxisScale, useYAxisScale, usePlotArea, ZIndexLayer } from 'recharts';
 import SlideShell from './SlideShell';
-import { fmt, levelOf, rankItemRows, LEVEL_STYLE } from '../../../utils/presentation';
+import { fmt, levelOf, rankItemRows, rankItemRowsByGroup, LEVEL_STYLE } from '../../../utils/presentation';
 
 const CHART_W = 960;
 const CHART_H = 600;
 
 const TARGET_YEARLY_COLOR = '#d97706';
 const TARGET_LEVEL5_COLOR = '#1e40af';
+
+// tooltip ตอน hover: แสดงผลดำเนินงาน + ค่าเป้าของหน่วยงานนั้น (ระดับ 5 และทั้งปี)
+function FocusTooltip({ active, payload, unit }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px', fontSize: 18, boxShadow: '0 6px 18px rgba(0,0,0,.12)', lineHeight: 1.5 }}>
+      <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{d.pea}</div>
+      <div style={{ color: '#334155' }}>ผลดำเนินงาน: <b>{fmt(d.value)}</b> {unit}</div>
+      {d.target > 0 && <div style={{ color: TARGET_LEVEL5_COLOR }}>เป้าระดับ 5: <b>{fmt(d.target)}</b> {unit}</div>}
+      {d.targetYearly > 0 && <div style={{ color: TARGET_YEARLY_COLOR }}>เป้าทั้งปี: <b>{fmt(d.targetYearly)}</b> {unit}</div>}
+    </div>
+  );
+}
 
 // เส้นเป้าหมายแยกรายหน่วยงาน วางทับแต่ละแท่งตามค่าเป้าของหน่วยนั้นเอง (ไม่ใช่ค่าเดียวทั้งกราฟ)
 // recharts 3: อ่านสเกลผ่าน hooks แทนการรับ xAxisMap/yAxisMap เป็น prop
@@ -87,7 +101,7 @@ function FocusChart({ entry, focusPeas }) {
         <CartesianGrid vertical={false} stroke="#e2e8f0" />
         <XAxis dataKey="pea" tick={{ fontSize: 24, fill: '#334155', fontWeight: 600 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
         <YAxis tick={{ fontSize: 18, fill: '#64748b' }} tickFormatter={(v) => fmt(v, 0)} domain={[0, Math.ceil(max * 1.15) || 1]} axisLine={false} tickLine={false} width={90} />
-        <Tooltip formatter={(v) => [fmt(v), 'ผลดำเนินงาน']} contentStyle={{ fontSize: 18 }} />
+        <Tooltip content={(props) => <FocusTooltip {...props} unit={entry.unit} />} cursor={{ fill: 'rgba(148,163,184,0.12)' }} />
         <Bar dataKey="value" radius={[10, 10, 0, 0]} maxBarSize={150} isAnimationActive={false}>
           {data.map((d) => <Cell key={d.pea} fill={LEVEL_STYLE[d.level].color} />)}
           <LabelList dataKey="value" position="top" formatter={(v) => fmt(v)} style={{ fontSize: 26, fontWeight: 700, fill: '#1e293b' }} />
@@ -140,7 +154,9 @@ function AllPeaChart({ entry, focusPeas }) {
 }
 
 export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, footer }) {
-  const { ranks, count } = rankItemRows(entry);
+  const { count } = rankItemRows(entry); // จำนวนทุกหน่วยงานที่มีผล (ใช้กับป้ายปุ่ม "ทุกหน่วยงาน")
+  // อันดับในการ์ด = เทียบเฉพาะหน่วยงานในกลุ่ม (Group) เดียวกัน
+  const { ranks, counts } = rankItemRowsByGroup(entry);
   // ข้อนี้มีคอลัมน์ "คิดเป็น" (% เทียบเป้าทั้งปี) หรือไม่ — ถ้ามีจึงแสดง % ทุกหน่วย (รวมที่เป็น 0)
   const itemHasPct = focusPeas.some((p) => entry.rows[p]?.percentage > 0);
   return (
@@ -197,10 +213,10 @@ export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, foote
                       {yearlyPct != null && (
                         <div>
                           ทำได้ <b style={{ color: yearlyPct >= 100 ? '#059669' : '#d97706' }}>{fmt(yearlyPct)}%</b> ของเป้าทั้งปี
-                          {ranks[pea] && <> · อันดับ {ranks[pea]} / {count}</>}
+                          {ranks[pea] && <> · อันดับ {ranks[pea]} / {counts[pea]} ในกลุ่ม</>}
                         </div>
                       )}
-                      {yearlyPct == null && ranks[pea] && <div>อันดับ {ranks[pea]} / {count}</div>}
+                      {yearlyPct == null && ranks[pea] && <div>อันดับ {ranks[pea]} / {counts[pea]} ในกลุ่ม</div>}
                     </div>
                     <div className="text-5xl font-bold leading-none" style={{ color: LEVEL_STYLE[lvl].color }}>{fmt(row.score)}</div>
                   </div>
