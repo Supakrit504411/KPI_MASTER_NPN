@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, Customized, useXAxisScale, useYAxisScale } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, Customized, useXAxisScale, useYAxisScale, usePlotArea } from 'recharts';
 import SlideShell from './SlideShell';
 import { fmt, levelOf, rankItemRows, LEVEL_STYLE } from '../../../utils/presentation';
 
@@ -10,21 +10,29 @@ const TARGET_LEVEL5_COLOR = '#1e40af';
 
 // เส้นเป้าหมายแยกรายหน่วยงาน วางทับแต่ละแท่งตามค่าเป้าของหน่วยนั้นเอง (ไม่ใช่ค่าเดียวทั้งกราฟ)
 // recharts 3: อ่านสเกลผ่าน hooks แทนการรับ xAxisMap/yAxisMap เป็น prop
+// หมายเหตุ: xScale เป็นพิกัดภายในพื้นที่กราฟ (เริ่มที่ 0) จึงต้องบวก plotArea.x; ส่วน yScale เป็นพิกัดเต็มอยู่แล้ว
 function PerPeaTargets({ data }) {
   const xScale = useXAxisScale();
   const yScale = useYAxisScale();
+  const plot = usePlotArea();
   if (!xScale || !yScale) return null;
+  const left = plot?.x || 0;
   const band = typeof xScale.bandwidth === 'function' ? xScale.bandwidth() : 0;
   const step = typeof xScale.step === 'function' ? xScale.step() : band;
-  const half = Math.min((step || band || 160) * 0.42, 90);
+  const half = Math.min((step || band || 160) * 0.4, 80);
   const mark = (cx, v, color, key) => {
     const y = yScale(v);
-    return <line key={key} x1={cx - half} x2={cx + half} y1={y} y2={y} stroke={color} strokeWidth={4} strokeDasharray="8 5" />;
+    return (
+      <g key={key}>
+        <line x1={cx - half} x2={cx + half} y1={y} y2={y} stroke={color} strokeWidth={4} strokeDasharray="8 5" />
+        <text x={cx} y={y - 6} textAnchor="middle" fontSize={16} fontWeight={700} fill={color} stroke="#ffffff" strokeWidth={3.5} paintOrder="stroke" strokeLinejoin="round">{fmt(v)}</text>
+      </g>
+    );
   };
   return (
     <g>
       {data.map((d) => {
-        const cx = xScale(d.pea) + band / 2;
+        const cx = left + xScale(d.pea) + band / 2;
         return (
           <g key={d.pea}>
             {d.targetYearly > 0 && mark(cx, d.targetYearly, TARGET_YEARLY_COLOR, 'ty')}
@@ -130,6 +138,8 @@ function AllPeaChart({ entry, focusPeas }) {
 
 export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, footer }) {
   const { ranks, count } = rankItemRows(entry);
+  // ข้อนี้มีคอลัมน์ "คิดเป็น" (% เทียบเป้าทั้งปี) หรือไม่ — ถ้ามีจึงแสดง % ทุกหน่วย (รวมที่เป็น 0)
+  const itemHasPct = focusPeas.some((p) => entry.rows[p]?.percentage > 0);
   return (
     <SlideShell
       kicker={`ตัวชี้วัดข้อ ${entry.item}`}
@@ -168,7 +178,8 @@ export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, foote
             const row = entry.rows[pea];
             const lvl = levelOf(row);
             const yearly = row && row.targetYearly > 0 ? row.targetYearly : 0;
-            const yearlyPct = yearly ? (row.result / yearly) * 100 : null;
+            // ใช้ % "คิดเป็น" จากชีต (คอลัมน์ L) เป็นค่าเดียว ไม่คำนวณซ้ำเพราะผลงานในชีตถูกปัดเศษแล้ว
+            const yearlyPct = itemHasPct && row ? row.percentage : null;
             return (
               <div key={pea} className="flex-1 min-h-0 rounded-2xl border border-slate-200 px-5 py-3 flex flex-col justify-center" style={{ borderLeft: `8px solid ${LEVEL_STYLE[lvl].color}` }}>
                 <div className="flex items-center justify-between gap-3">
@@ -179,14 +190,14 @@ export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, foote
                   <div className="flex items-end justify-between gap-3 mt-1">
                     <div className="text-lg text-slate-500 leading-snug">
                       ผลงาน <b className="text-slate-700">{fmt(row.result)}</b> {entry.unit}
-                      {row.percentage ? <> · คิดเป็น <b className="text-slate-700">{fmt(row.percentage)}</b></> : null}
+                      {yearly > 0 && <> · เป้าทั้งปี <b className="text-slate-700">{fmt(yearly)}</b> {entry.unit}</>}
                       {yearlyPct != null && (
                         <div>
-                          เป้าทั้งปี <b className="text-slate-700">{fmt(yearly)}</b> {entry.unit} · ทำได้{' '}
-                          <b style={{ color: yearlyPct >= 100 ? '#059669' : '#d97706' }}>{fmt(yearlyPct, 1)}%</b>
+                          ทำได้ <b style={{ color: yearlyPct >= 100 ? '#059669' : '#d97706' }}>{fmt(yearlyPct)}%</b> ของเป้าทั้งปี
+                          {ranks[pea] && <> · อันดับ {ranks[pea]} / {count}</>}
                         </div>
                       )}
-                      {ranks[pea] && <div>อันดับ {ranks[pea]} / {count}</div>}
+                      {yearlyPct == null && ranks[pea] && <div>อันดับ {ranks[pea]} / {count}</div>}
                     </div>
                     <div className="text-5xl font-bold leading-none" style={{ color: LEVEL_STYLE[lvl].color }}>{fmt(row.score)}</div>
                   </div>
