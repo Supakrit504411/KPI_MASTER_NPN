@@ -1,14 +1,67 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, Customized, useXAxisScale, useYAxisScale } from 'recharts';
 import SlideShell from './SlideShell';
 import { fmt, levelOf, rankItemRows, LEVEL_STYLE } from '../../../utils/presentation';
 
 const CHART_W = 960;
 const CHART_H = 600;
 
+const TARGET_YEARLY_COLOR = '#d97706';
+const TARGET_LEVEL5_COLOR = '#1e40af';
+
+// เส้นเป้าหมายแยกรายหน่วยงาน วางทับแต่ละแท่งตามค่าเป้าของหน่วยนั้นเอง (ไม่ใช่ค่าเดียวทั้งกราฟ)
+// recharts 3: อ่านสเกลผ่าน hooks แทนการรับ xAxisMap/yAxisMap เป็น prop
+function PerPeaTargets({ data }) {
+  const xScale = useXAxisScale();
+  const yScale = useYAxisScale();
+  if (!xScale || !yScale) return null;
+  const band = typeof xScale.bandwidth === 'function' ? xScale.bandwidth() : 0;
+  const step = typeof xScale.step === 'function' ? xScale.step() : band;
+  const half = Math.min((step || band || 160) * 0.42, 90);
+  const mark = (cx, v, color, key) => {
+    const y = yScale(v);
+    return <line key={key} x1={cx - half} x2={cx + half} y1={y} y2={y} stroke={color} strokeWidth={4} strokeDasharray="8 5" />;
+  };
+  return (
+    <g>
+      {data.map((d) => {
+        const cx = xScale(d.pea) + band / 2;
+        return (
+          <g key={d.pea}>
+            {d.targetYearly > 0 && mark(cx, d.targetYearly, TARGET_YEARLY_COLOR, 'ty')}
+            {d.target > 0 && mark(cx, d.target, TARGET_LEVEL5_COLOR, 't5')}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function TargetLegend() {
+  const item = (color, label) => (
+    <span className="flex items-center gap-2 text-slate-600">
+      <svg width="34" height="10"><line x1="1" y1="5" x2="33" y2="5" stroke={color} strokeWidth="4" strokeDasharray="8 5" /></svg>
+      {label}
+    </span>
+  );
+  return (
+    <div className="flex items-center gap-6 mb-1 text-lg font-medium">
+      {item(TARGET_LEVEL5_COLOR, 'เป้าระดับ 5')}
+      {item(TARGET_YEARLY_COLOR, 'เป้าทั้งปี')}
+      <span className="text-slate-400 text-base">(เป้าของแต่ละหน่วยงาน)</span>
+    </div>
+  );
+}
+
 function FocusChart({ entry, focusPeas }) {
   const data = focusPeas.map((pea) => {
     const row = entry.rows[pea];
-    return { pea, value: row ? row.result : 0, level: levelOf(row) };
+    return {
+      pea,
+      value: row ? row.result : 0,
+      level: levelOf(row),
+      target: row?.targetLevel5 || 0,
+      targetYearly: row?.targetYearly || 0,
+    };
   });
   const hasResult = data.some((d) => d.value);
   if (!hasResult) {
@@ -18,36 +71,22 @@ function FocusChart({ entry, focusPeas }) {
       </div>
     );
   }
-  const max = Math.max(entry.target || 0, entry.targetYearly || 0, ...data.map((d) => d.value));
+  const max = Math.max(...data.flatMap((d) => [d.value, d.target, d.targetYearly]), 0);
   return (
-    <BarChart width={CHART_W} height={CHART_H} data={data} margin={{ top: 50, right: 190, left: 10, bottom: 10 }}>
-      <CartesianGrid vertical={false} stroke="#e2e8f0" />
-      <XAxis dataKey="pea" tick={{ fontSize: 24, fill: '#334155', fontWeight: 600 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
-      <YAxis tick={{ fontSize: 18, fill: '#64748b' }} tickFormatter={(v) => fmt(v, 0)} domain={[0, Math.ceil(max * 1.15) || 1]} axisLine={false} tickLine={false} width={90} />
-      <Tooltip formatter={(v) => [fmt(v), 'ผลดำเนินงาน']} contentStyle={{ fontSize: 18 }} />
-      {entry.targetYearly > 0 && (
-        <ReferenceLine
-          y={entry.targetYearly}
-          stroke="#d97706"
-          strokeDasharray="8 6"
-          strokeWidth={2}
-          label={{ value: `เป้าทั้งปี ${fmt(entry.targetYearly)}`, position: 'right', fill: '#b45309', fontSize: 18, fontWeight: 700 }}
-        />
-      )}
-      {entry.target > 0 && (
-        <ReferenceLine
-          y={entry.target}
-          stroke="#1e40af"
-          strokeDasharray="8 6"
-          strokeWidth={2}
-          label={{ value: `เป้าระดับ5 ${fmt(entry.target)}`, position: 'right', fill: '#1e40af', fontSize: 18, fontWeight: 700 }}
-        />
-      )}
-      <Bar dataKey="value" radius={[10, 10, 0, 0]} maxBarSize={150} isAnimationActive={false}>
-        {data.map((d) => <Cell key={d.pea} fill={LEVEL_STYLE[d.level].color} />)}
-        <LabelList dataKey="value" position="top" formatter={(v) => fmt(v)} style={{ fontSize: 26, fontWeight: 700, fill: '#1e293b' }} />
-      </Bar>
-    </BarChart>
+    <div style={{ width: CHART_W }}>
+      <TargetLegend />
+      <BarChart width={CHART_W} height={CHART_H - 36} data={data} margin={{ top: 50, right: 70, left: 10, bottom: 10 }}>
+        <CartesianGrid vertical={false} stroke="#e2e8f0" />
+        <XAxis dataKey="pea" tick={{ fontSize: 24, fill: '#334155', fontWeight: 600 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
+        <YAxis tick={{ fontSize: 18, fill: '#64748b' }} tickFormatter={(v) => fmt(v, 0)} domain={[0, Math.ceil(max * 1.15) || 1]} axisLine={false} tickLine={false} width={90} />
+        <Tooltip formatter={(v) => [fmt(v), 'ผลดำเนินงาน']} contentStyle={{ fontSize: 18 }} />
+        <Bar dataKey="value" radius={[10, 10, 0, 0]} maxBarSize={150} isAnimationActive={false}>
+          {data.map((d) => <Cell key={d.pea} fill={LEVEL_STYLE[d.level].color} />)}
+          <LabelList dataKey="value" position="top" formatter={(v) => fmt(v)} style={{ fontSize: 26, fontWeight: 700, fill: '#1e293b' }} />
+        </Bar>
+        <Customized component={() => <PerPeaTargets data={data} />} />
+      </BarChart>
+    </div>
   );
 }
 
@@ -96,12 +135,10 @@ export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, foote
       kicker={`ตัวชี้วัดข้อ ${entry.item}`}
       title={<span className="line-clamp-2 text-[34px] block">{entry.description}</span>}
       aside={
-        entry.target > 0 && (
+        entry.unit && (
           <div className="text-right bg-blue-50 rounded-2xl px-6 py-3">
-            <div className="text-lg text-blue-700">เป้าหมายระดับ 5</div>
-            <div className="text-4xl font-bold text-blue-800">
-              {fmt(entry.target)} <span className="text-xl font-medium">{entry.unit}</span>
-            </div>
+            <div className="text-lg text-blue-700">หน่วยวัด</div>
+            <div className="text-4xl font-bold text-blue-800">{entry.unit}</div>
           </div>
         )
       }
