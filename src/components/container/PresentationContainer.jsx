@@ -58,6 +58,9 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
   const [current, setCurrent] = useState(0);
   const [drill, setDrill] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
+  // เปิดแผงตั้งค่าแล้วเลื่อนไปที่ส่วน "เลือกข้อ" ทันที (เมื่อกดปุ่มเลือกข้อที่ footer)
+  const [setupItemsFocus, setSetupItemsFocus] = useState(false);
+  const openSetup = useCallback((focusItems = false) => { setSetupItemsFocus(focusItems); setShowSetup(true); }, []);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [pendingJump, setPendingJump] = useState(null);
@@ -160,14 +163,14 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
         case 'f': case 'F': toggleFullscreen(); break;
         case 'd': case 'D': setDrill((v) => !v); break;
         case 'm': case 'M': go(matrixIndex); break;
-        case 's': case 'S': setShowSetup(true); break;
+        case 's': case 'S': openSetup(false); break;
         case 'Escape': if (!document.fullscreenElement) onExit(); break;
         default:
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, safeCurrent, slides.length, showSetup, toggleFullscreen, onExit]);
+  }, [go, safeCurrent, slides.length, showSetup, toggleFullscreen, onExit, openSetup]);
 
   // แถบควบคุมจะซ่อนเองเมื่อไม่ขยับเมาส์ 2.5 วินาที
   const pokeControls = useCallback(() => {
@@ -237,9 +240,17 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
             {label}
           </button>
         ))}
+        <button
+          type="button"
+          title="เลือกข้อที่จะนำเสนอเอง"
+          onClick={() => openSetup(true)}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${itemFilter === 'custom' ? 'bg-amber-400 text-blue-900' : 'hover:bg-white/15'}`}
+        >
+          เลือกข้อ{itemFilter === 'custom' ? ` (${deckItems.length})` : ''}
+        </button>
         <div className="w-px h-5 bg-white/20 mx-1" />
         <CtrlBtn title="แผนที่ตัวชี้วัด (M)" onClick={() => go(matrixIndex)}><LayoutGrid className="w-5 h-5" /></CtrlBtn>
-        <CtrlBtn title="ตั้งค่า (S)" onClick={() => setShowSetup(true)}><Settings2 className="w-5 h-5" /></CtrlBtn>
+        <CtrlBtn title="ตั้งค่า (S)" onClick={() => openSetup(false)}><Settings2 className="w-5 h-5" /></CtrlBtn>
         <CtrlBtn title="เต็มจอ (F)" onClick={toggleFullscreen}>{isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}</CtrlBtn>
         <CtrlBtn title="ออกจากโหมดนำเสนอ (Esc)" onClick={onExit}><X className="w-5 h-5" /></CtrlBtn>
       </div>
@@ -254,6 +265,7 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
           onChangeFilter={setItemFilter}
           onChangePeas={setFocusPeas}
           onChangeItems={setDeckItems}
+          focusItems={setupItemsFocus}
           localCover={localCover}
           sheetCover={sheetCover}
           onChangeLocalCover={changeLocalCover}

@@ -1,14 +1,22 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Search, ImagePlus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { levelOf, LEVEL_STYLE, ITEM_FILTERS, toImageUrl, fileToCoverDataUrl } from '../../../utils/presentation';
 
 const MAX_FOCUS = 6;
 
-export default function PresentationSetup({ index, allPeas, focusPeas, deckItems, itemFilter, onChangeFilter, onChangePeas, onChangeItems, localCover, sheetCover, onChangeLocalCover, onClose }) {
+export default function PresentationSetup({ index, allPeas, focusPeas, deckItems, itemFilter, onChangeFilter, onChangePeas, onChangeItems, focusItems, localCover, sheetCover, onChangeLocalCover, onClose }) {
   const [q, setQ] = useState('');
+  const [itemQuery, setItemQuery] = useState('');
+  const itemsRef = useRef(null);
   const entries = [...index.values()];
   const peaMatches = allPeas.filter((p) => p.includes(q.trim()));
+  const shownEntries = itemQuery.trim() ? entries.filter((e) => e.item.includes(itemQuery.trim()) || e.description.includes(itemQuery.trim())) : entries;
+
+  // เปิดจากปุ่ม "เลือกข้อ" ที่ footer → เลื่อนมาที่ส่วนเลือกข้อทันที
+  useEffect(() => {
+    if (focusItems) itemsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [focusItems]);
 
   const togglePea = (p) => {
     if (focusPeas.includes(p)) onChangePeas(focusPeas.filter((x) => x !== p));
@@ -105,7 +113,7 @@ export default function PresentationSetup({ index, allPeas, focusPeas, deckItems
             </div>
           </section>
 
-          <section>
+          <section ref={itemsRef} className="scroll-mt-2">
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <h4 className="font-semibold text-slate-700">ตัวชี้วัดที่นำเสนอ ({deckItems.length}/{entries.length})</h4>
               <div className="flex gap-2 text-xs">
@@ -132,8 +140,13 @@ export default function PresentationSetup({ index, allPeas, focusPeas, deckItems
                     : 'แสดงทุกข้อ'}
               {' · ติ๊กเพิ่ม/เอาออกรายข้อได้'}
             </p>
-            <ul className="divide-y border rounded-lg">
-              {entries.map((e) => (
+            <div className="relative mb-2">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <input value={itemQuery} onChange={(e) => setItemQuery(e.target.value)} placeholder="ค้นหาข้อ เช่น 4 หรือชื่อตัวชี้วัด" className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <ul className="divide-y border rounded-lg max-h-72 overflow-y-auto">
+              {shownEntries.length === 0 && <li className="px-3 py-3 text-sm text-slate-400">ไม่พบข้อที่ค้นหา</li>}
+              {shownEntries.map((e) => (
                 <li key={e.item}>
                   <label className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer">
                     <input type="checkbox" checked={deckItems.includes(e.item)} onChange={() => toggleItem(e.item)} className="w-4 h-4 accent-blue-600" />
