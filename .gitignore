@@ -26,6 +26,7 @@ dist-ssr
 
 # Personal files - not needed in repo
 *.md
+!README.md
 *.txt
 .claude/
 verify.js
