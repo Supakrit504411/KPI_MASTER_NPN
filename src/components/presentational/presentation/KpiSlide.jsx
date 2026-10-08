@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, Customized, useXAxisScale, useYAxisScale, usePlotArea } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, useXAxisScale, useYAxisScale, usePlotArea, ZIndexLayer } from 'recharts';
 import SlideShell from './SlideShell';
 import { fmt, levelOf, rankItemRows, LEVEL_STYLE } from '../../../utils/presentation';
 
@@ -92,7 +92,10 @@ function FocusChart({ entry, focusPeas }) {
           {data.map((d) => <Cell key={d.pea} fill={LEVEL_STYLE[d.level].color} />)}
           <LabelList dataKey="value" position="top" formatter={(v) => fmt(v)} style={{ fontSize: 26, fontWeight: 700, fill: '#1e293b' }} />
         </Bar>
-        <Customized component={() => <PerPeaTargets data={data} />} />
+        {/* zIndex 450 = เหนือแท่ง (300) และเหนือ cursor สีเทาตอน hover (200) เพื่อไม่ให้เส้น/เลขเป้าถูกบัง */}
+        <ZIndexLayer zIndex={450}>
+          <PerPeaTargets data={data} />
+        </ZIndexLayer>
       </BarChart>
     </div>
   );
