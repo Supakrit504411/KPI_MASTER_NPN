@@ -1,5 +1,5 @@
 // โครงสไลด์ 1600x900 ทุกหน้าใช้ร่วมกัน: แถบหัวเรื่อง + พื้นที่เนื้อหา + footer
-export default function SlideShell({ kicker, title, aside, footer, children }) {
+export default function SlideShell({ kicker, title, aside, footer, children, brand = 'PEA Dashboard · ผลการดำเนินงานตามตัวชี้วัด (KPIs)' }) {
   return (
     <div className="w-[1600px] h-[900px] bg-white flex flex-col overflow-hidden">
       <div className="h-2 bg-gradient-to-r from-blue-800 via-blue-600 to-amber-400 shrink-0" />
@@ -12,7 +12,7 @@ export default function SlideShell({ kicker, title, aside, footer, children }) {
       </div>
       <div className="flex-1 min-h-0 px-16 pb-6">{children}</div>
       <div className="px-16 py-4 border-t border-slate-100 flex items-center justify-between text-base text-slate-400 shrink-0">
-        <span>PEA Dashboard · ผลการดำเนินงานตามตัวชี้วัด (KPIs)</span>
+        <span>{brand}</span>
         <span>{footer}</span>
       </div>
     </div>
