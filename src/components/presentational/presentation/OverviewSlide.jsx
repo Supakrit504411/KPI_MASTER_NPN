@@ -2,22 +2,27 @@ import SlideShell from './SlideShell';
 import { fmt, LEVEL_STYLE } from '../../../utils/presentation';
 
 export default function OverviewSlide({ overview, footer }) {
-  const { focus, totalPeas, avg } = overview;
+  const { focus, groups } = overview;
   return (
     <SlideShell
       kicker="ภาพรวม"
       title="คะแนนสุทธิรวมทุกตัวชี้วัด"
       aside={
-        <div className="text-right">
-          <div className="text-lg text-slate-500">ค่าเฉลี่ย {totalPeas} หน่วยงาน</div>
-          <div className="text-4xl font-bold text-slate-700">{fmt(avg)}%</div>
+        <div className="text-right space-y-1">
+          <div className="text-base text-slate-500">ค่าเฉลี่ยในกลุ่ม</div>
+          {groups.map((g) => (
+            <div key={g.group} className="flex items-baseline justify-end gap-2">
+              <span className="text-base text-slate-500">{g.group} ({g.total})</span>
+              <span className="text-2xl font-bold text-slate-700">{fmt(g.avg)}%</span>
+            </div>
+          ))}
         </div>
       }
       footer={footer}
     >
       <div className="grid gap-6 h-full" style={{ gridTemplateColumns: `repeat(${Math.max(focus.length, 1)}, minmax(0, 1fr))` }}>
         {focus.map((s) => {
-          const above = s.percentage >= avg;
+          const above = s.percentage >= s.groupAvg;
           const segs = [
             ['passed', s.passed],
             ['failed', s.failed],
@@ -26,7 +31,7 @@ export default function OverviewSlide({ overview, footer }) {
           return (
             <div key={s.pea} className="rounded-3xl border border-slate-200 bg-slate-50 p-8 flex flex-col">
               <div className="text-3xl font-bold text-slate-800">{s.pea}</div>
-              <div className="text-lg text-slate-500 mt-1">อันดับ {s.rank} จาก {totalPeas}</div>
+              <div className="text-lg text-slate-500 mt-1">อันดับ {s.rank} จาก {s.groupTotal} · กลุ่ม {s.group}</div>
 
               <div className="mt-8 flex items-baseline gap-2">
                 <span className={`text-[96px] leading-none font-bold ${above ? 'text-blue-700' : 'text-red-600'}`}>

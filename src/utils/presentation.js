@@ -66,19 +66,52 @@ export function rankItemRowsByGroup(entry) {
   return { ranks, counts };
 }
 
-// สรุปทั้งหน่วยงาน + อันดับ % คะแนนสุทธิ เทียบกับทุก PEA
+// สรุปทั้งหน่วยงาน + อันดับ % คะแนนสุทธิ "เทียบเฉพาะในกลุ่ม (Group) เดียวกัน"
 export function buildPEAOverview(data, focusPeas) {
-  const all = getUniquePEAs(data)
-    .map((pea) => getPEASummary(data, pea))
-    .toSorted((a, b) => b.percentage - a.percentage);
+  // กลุ่มของแต่ละหน่วยงาน (เอาจากแถวแรกที่เจอ)
+  const peaGroup = {};
+  for (const row of data) {
+    const pea = normalizeKeyLocal(row.pea);
+    if (pea && !(pea in peaGroup)) peaGroup[pea] = row.group || '';
+  }
+  const all = getUniquePEAs(data).map((pea) => ({ ...getPEASummary(data, pea), group: peaGroup[pea] || '' }));
+
+  // จัดอันดับและค่าเฉลี่ยภายในแต่ละกลุ่ม
+  const byGroup = {};
+  for (const s of all) (byGroup[s.group] ||= []).push(s);
   const rankOf = {};
-  all.forEach((s, i) => { rankOf[s.pea] = i + 1; });
-  const avg = all.length ? all.reduce((s, x) => s + x.percentage, 0) / all.length : 0;
-  return {
-    focus: focusPeas.map((pea) => ({ ...getPEASummary(data, pea), rank: rankOf[pea] })),
-    totalPeas: all.length,
-    avg,
-  };
+  const groupTotal = {};
+  const groupAvgOf = {};
+  for (const list of Object.values(byGroup)) {
+    list.sort((a, b) => b.percentage - a.percentage);
+    const gAvg = list.length ? list.reduce((t, x) => t + x.percentage, 0) / list.length : 0;
+    list.forEach((s, i) => {
+      rankOf[s.pea] = i + 1;
+      groupTotal[s.pea] = list.length;
+      groupAvgOf[s.pea] = gAvg;
+    });
+  }
+
+  const focus = focusPeas.map((pea) => ({
+    ...getPEASummary(data, pea),
+    group: peaGroup[pea] || '',
+    rank: rankOf[pea],
+    groupTotal: groupTotal[pea] || 0,
+    groupAvg: groupAvgOf[pea] || 0,
+  }));
+
+  // ค่าเฉลี่ยของแต่ละกลุ่มที่มีหน่วยงานโฟกัสอยู่ (ไว้โชว์หัวสไลด์)
+  const groups = [...new Set(focus.map((f) => f.group))].map((g) => ({
+    group: g,
+    total: byGroup[g]?.length || 0,
+    avg: byGroup[g] && byGroup[g].length ? byGroup[g].reduce((t, x) => t + x.percentage, 0) / byGroup[g].length : 0,
+  }));
+
+  return { focus, groups, totalPeas: all.length };
+}
+
+function normalizeKeyLocal(value) {
+  return String(value ?? '').trim();
 }
 
 export const ITEM_FILTERS = {
