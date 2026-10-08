@@ -18,20 +18,29 @@ function FocusChart({ entry, focusPeas }) {
       </div>
     );
   }
-  const max = Math.max(entry.target || 0, ...data.map((d) => d.value));
+  const max = Math.max(entry.target || 0, entry.targetYearly || 0, ...data.map((d) => d.value));
   return (
-    <BarChart width={CHART_W} height={CHART_H} data={data} margin={{ top: 50, right: 120, left: 10, bottom: 10 }}>
+    <BarChart width={CHART_W} height={CHART_H} data={data} margin={{ top: 50, right: 190, left: 10, bottom: 10 }}>
       <CartesianGrid vertical={false} stroke="#e2e8f0" />
       <XAxis dataKey="pea" tick={{ fontSize: 24, fill: '#334155', fontWeight: 600 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
       <YAxis tick={{ fontSize: 18, fill: '#64748b' }} tickFormatter={(v) => fmt(v, 0)} domain={[0, Math.ceil(max * 1.15) || 1]} axisLine={false} tickLine={false} width={90} />
       <Tooltip formatter={(v) => [fmt(v), 'ผลดำเนินงาน']} contentStyle={{ fontSize: 18 }} />
+      {entry.targetYearly > 0 && (
+        <ReferenceLine
+          y={entry.targetYearly}
+          stroke="#d97706"
+          strokeDasharray="8 6"
+          strokeWidth={2}
+          label={{ value: `เป้าทั้งปี ${fmt(entry.targetYearly)}`, position: 'right', fill: '#b45309', fontSize: 18, fontWeight: 700 }}
+        />
+      )}
       {entry.target > 0 && (
         <ReferenceLine
           y={entry.target}
           stroke="#1e40af"
           strokeDasharray="8 6"
           strokeWidth={2}
-          label={{ value: `เป้า ${fmt(entry.target)}`, position: 'right', fill: '#1e40af', fontSize: 20, fontWeight: 700 }}
+          label={{ value: `เป้าระดับ5 ${fmt(entry.target)}`, position: 'right', fill: '#1e40af', fontSize: 18, fontWeight: 700 }}
         />
       )}
       <Bar dataKey="value" radius={[10, 10, 0, 0]} maxBarSize={150} isAnimationActive={false}>
@@ -121,6 +130,8 @@ export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, foote
           {focusPeas.map((pea) => {
             const row = entry.rows[pea];
             const lvl = levelOf(row);
+            const yearly = row && row.targetYearly > 0 ? row.targetYearly : 0;
+            const yearlyPct = yearly ? (row.result / yearly) * 100 : null;
             return (
               <div key={pea} className="flex-1 min-h-0 rounded-2xl border border-slate-200 px-5 py-3 flex flex-col justify-center" style={{ borderLeft: `8px solid ${LEVEL_STYLE[lvl].color}` }}>
                 <div className="flex items-center justify-between gap-3">
@@ -132,6 +143,12 @@ export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, foote
                     <div className="text-lg text-slate-500 leading-snug">
                       ผลงาน <b className="text-slate-700">{fmt(row.result)}</b> {entry.unit}
                       {row.percentage ? <> · คิดเป็น <b className="text-slate-700">{fmt(row.percentage)}</b></> : null}
+                      {yearlyPct != null && (
+                        <div>
+                          เป้าทั้งปี <b className="text-slate-700">{fmt(yearly)}</b> {entry.unit} · ทำได้{' '}
+                          <b style={{ color: yearlyPct >= 100 ? '#059669' : '#d97706' }}>{fmt(yearlyPct, 1)}%</b>
+                        </div>
+                      )}
                       {ranks[pea] && <div>อันดับ {ranks[pea]} / {count}</div>}
                     </div>
                     <div className="text-5xl font-bold leading-none" style={{ color: LEVEL_STYLE[lvl].color }}>{fmt(row.score)}</div>

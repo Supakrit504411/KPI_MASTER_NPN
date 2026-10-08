@@ -14,11 +14,11 @@ export function levelOf(row) {
   return row ? getScoreLevel(row.status, row.score) : 'pending';
 }
 
-// item -> { item, description, unit, target, rows: { [pea]: row } } ตามลำดับในชีต
+// item -> { item, description, unit, target, targetYearly, rows: { [pea]: row } } ตามลำดับในชีต
 export function buildItemIndex(data) {
   const index = new Map();
   for (const item of getUniqueItems(data)) {
-    index.set(item, { item, description: '', unit: '', target: 0, group: '', rows: {} });
+    index.set(item, { item, description: '', unit: '', target: 0, targetYearly: 0, group: '', rows: {} });
   }
   for (const row of data) {
     const entry = index.get(row.item);
@@ -27,6 +27,7 @@ export function buildItemIndex(data) {
     if (!entry.description && row.description) entry.description = row.description;
     if (!entry.unit && row.unit) entry.unit = row.unit;
     if (!entry.target && row.targetLevel5) entry.target = row.targetLevel5;
+    if (!entry.targetYearly && row.targetYearly) entry.targetYearly = row.targetYearly;
   }
   return index;
 }
