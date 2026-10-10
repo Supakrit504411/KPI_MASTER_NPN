@@ -1,4 +1,4 @@
-import { getScoreLevel, getUniqueItems, getUniquePEAs, getPEASummary } from './parseCSV';
+import { getScoreLevel, getUniqueItems, getUniquePEAs, getPEASummary, getPeaGroupMap } from './parseCSV';
 
 export const LEVEL_STYLE = {
   passed: { label: 'ผ่านเกณฑ์', color: '#059669', chip: 'bg-emerald-100 text-emerald-700' },
@@ -68,12 +68,8 @@ export function rankItemRowsByGroup(entry) {
 
 // สรุปทั้งหน่วยงาน + อันดับ % คะแนนสุทธิ "เทียบเฉพาะในกลุ่ม (Group) เดียวกัน"
 export function buildPEAOverview(data, focusPeas) {
-  // กลุ่มของแต่ละหน่วยงาน (เอาจากแถวแรกที่เจอ)
-  const peaGroup = {};
-  for (const row of data) {
-    const pea = normalizeKeyLocal(row.pea);
-    if (pea && !(pea in peaGroup)) peaGroup[pea] = row.group || '';
-  }
+  // กลุ่มหลักของแต่ละหน่วยงาน (กันข้อมูลบางแถวที่พิมพ์กลุ่มผิด)
+  const peaGroup = getPeaGroupMap(data);
   const all = getUniquePEAs(data).map((pea) => ({ ...getPEASummary(data, pea), group: peaGroup[pea] || '' }));
 
   // จัดอันดับและค่าเฉลี่ยภายในแต่ละกลุ่ม
@@ -108,10 +104,6 @@ export function buildPEAOverview(data, focusPeas) {
   }));
 
   return { focus, groups, totalPeas: all.length };
-}
-
-function normalizeKeyLocal(value) {
-  return String(value ?? '').trim();
 }
 
 export const ITEM_FILTERS = {

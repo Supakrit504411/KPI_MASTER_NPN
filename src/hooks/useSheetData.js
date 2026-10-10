@@ -5,6 +5,7 @@ import {
   filterValidRows,
   getUniquePEAs,
   getUniqueGroups,
+  getPeaGroupMap,
   getPEASummary,
   getOverallSummary,
   MONITOR_PEAS,
@@ -79,11 +80,14 @@ export default function useSheetData() {
     });
   }, []);
 
+  const peaGroupMap = useMemo(() => getPeaGroupMap(rawData), [rawData]);
+
   const activeData = useMemo(() => {
     let data = [...rawData];
 
     if (selectedGroups.length > 0) {
-      data = data.filter((row) => selectedGroups.includes(row.group));
+      // กรองตาม "กลุ่มหลัก" ของหน่วยงาน (กันข้อมูลบางแถวที่พิมพ์กลุ่มผิด)
+      data = data.filter((row) => selectedGroups.includes(peaGroupMap[row.pea]));
     }
     if (selectedPEAs.length > 0) {
       data = data.filter((row) => selectedPEAs.includes(row.pea));
@@ -98,7 +102,7 @@ export default function useSheetData() {
     }
 
     return data;
-  }, [rawData, monitorMode, selectedGroups, selectedPEAs]);
+  }, [rawData, monitorMode, selectedGroups, selectedPEAs, peaGroupMap]);
 
   const peas = useMemo(() => getUniquePEAs(activeData), [activeData]);
 

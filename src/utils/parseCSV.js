@@ -110,6 +110,23 @@ export function getUniqueGroups(data) {
   return groups;
 }
 
+// กลุ่มหลักของแต่ละหน่วยงาน = กลุ่มที่พบบ่อยสุดในแถวของหน่วยนั้น
+// กันกรณีข้อมูลผิด (บางแถวพิมพ์กลุ่มผิด) ไม่ให้หน่วยงานโผล่ผิดกลุ่ม
+export function getPeaGroupMap(data) {
+  const counts = {};
+  for (const row of data) {
+    const pea = normalizeKey(row.pea);
+    const group = normalizeKey(row.group);
+    if (!pea || !group) continue;
+    (counts[pea] ??= {})[group] = (counts[pea][group] || 0) + 1;
+  }
+  const map = {};
+  for (const pea of Object.keys(counts)) {
+    map[pea] = Object.entries(counts[pea]).sort((a, b) => b[1] - a[1])[0][0];
+  }
+  return map;
+}
+
 export function getUniquePEAs(data) {
   const seen = new Set();
   const peas = [];
