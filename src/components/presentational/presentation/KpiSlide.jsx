@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, useYAxisScale, usePlotArea, ZIndexLayer } from 'recharts';
 import SlideShell from './SlideShell';
 import { fmt, levelOf, rankItemRows, rankItemRowsByGroup, LEVEL_STYLE } from '../../../utils/presentation';
@@ -152,6 +153,7 @@ function AllPeaChart({ entry, focusPeas }) {
 }
 
 export default function KpiSlide({ entry, focusPeas, peaGroup, drill, onToggleDrill, footer }) {
+  const [hovered, setHovered] = useState(null); // หน่วยงานที่เมาส์ชี้อยู่ (ทำลูกเล่นการ์ด)
   const { count } = rankItemRows(entry); // จำนวนทุกหน่วยงานที่มีผล (ใช้กับป้ายปุ่ม "ทุกหน่วยงาน")
   // อันดับในการ์ด = เทียบเฉพาะหน่วยงานในกลุ่ม (Group) เดียวกัน (ใช้กลุ่มหลัก กันข้อมูลแถวหลงกลุ่ม)
   const { ranks, counts } = rankItemRowsByGroup(entry, peaGroup);
@@ -197,10 +199,24 @@ export default function KpiSlide({ entry, focusPeas, peaGroup, drill, onToggleDr
             const yearly = row && row.targetYearly > 0 ? row.targetYearly : 0;
             // ใช้ % "คิดเป็น" จากชีต (คอลัมน์ L) เป็นค่าเดียว ไม่คำนวณซ้ำเพราะผลงานในชีตถูกปัดเศษแล้ว
             const yearlyPct = itemHasPct && row ? row.percentage : null;
+            const color = LEVEL_STYLE[lvl].color;
+            const isHover = hovered === pea;
             return (
-              <div key={pea} className="flex-1 min-h-0 rounded-2xl border border-slate-200 px-5 py-3 flex flex-col justify-center" style={{ borderLeft: `8px solid ${LEVEL_STYLE[lvl].color}` }}>
+              <div
+                key={pea}
+                onMouseEnter={() => setHovered(pea)}
+                onMouseLeave={() => setHovered(null)}
+                className="flex-1 min-h-0 rounded-2xl border bg-white px-5 py-3 flex flex-col justify-center transition-all duration-200 ease-out will-change-transform cursor-default"
+                style={{
+                  borderColor: isHover ? color : '#e2e8f0',
+                  borderLeft: `8px solid ${color}`,
+                  transform: isHover ? 'translateY(-4px) scale(1.025)' : 'none',
+                  boxShadow: isHover ? `0 16px 34px -8px ${color}66` : '0 1px 2px rgba(15,23,42,0.05)',
+                  zIndex: isHover ? 5 : 1,
+                }}
+              >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-2xl font-bold text-slate-800">{pea}</span>
+                  <span className="text-2xl font-bold transition-colors duration-200" style={{ color: isHover ? color : '#1e293b' }}>{pea}</span>
                   <span className={`text-base font-semibold px-3 py-0.5 rounded-full ${LEVEL_STYLE[lvl].chip}`}>{LEVEL_STYLE[lvl].label}</span>
                 </div>
                 {row && lvl !== 'pending' ? (
@@ -216,7 +232,7 @@ export default function KpiSlide({ entry, focusPeas, peaGroup, drill, onToggleDr
                       )}
                       {yearlyPct == null && ranks[pea] && <div>อันดับ {ranks[pea]} / {counts[pea]} ในกลุ่ม</div>}
                     </div>
-                    <div className="text-5xl font-bold leading-none" style={{ color: LEVEL_STYLE[lvl].color }}>{fmt(row.score)}</div>
+                    <div className="text-5xl font-bold leading-none transition-transform duration-200 origin-right" style={{ color, transform: isHover ? 'scale(1.12)' : 'none' }}>{fmt(row.score)}</div>
                   </div>
                 ) : (
                   <div className="text-lg text-slate-400 mt-1">ยังไม่มีผลดำเนินงาน</div>
