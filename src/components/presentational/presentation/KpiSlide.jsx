@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, useXAxisScale, useYAxisScale, usePlotArea, ZIndexLayer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, LabelList, ReferenceLine, Tooltip, useYAxisScale, usePlotArea, ZIndexLayer } from 'recharts';
 import SlideShell from './SlideShell';
 import { fmt, levelOf, rankItemRows, rankItemRowsByGroup, LEVEL_STYLE } from '../../../utils/presentation';
 
@@ -23,17 +23,15 @@ function FocusTooltip({ active, payload, unit }) {
 }
 
 // เส้นเป้าหมายแยกรายหน่วยงาน วางทับแต่ละแท่งตามค่าเป้าของหน่วยนั้นเอง (ไม่ใช่ค่าเดียวทั้งกราฟ)
-// recharts 3: อ่านสเกลผ่าน hooks แทนการรับ xAxisMap/yAxisMap เป็น prop
-// หมายเหตุ: xScale เป็นพิกัดภายในพื้นที่กราฟ (เริ่มที่ 0) จึงต้องบวก plotArea.x; ส่วน yScale เป็นพิกัดเต็มอยู่แล้ว
+// recharts 3: yScale จาก hook เป็นพิกัดเต็มอยู่แล้ว ส่วนตำแหน่งแนวนอนคำนวณจากพื้นที่กราฟ (plotArea)
+// โดยกระจายให้ตรงกลางแต่ละแท่งแบบสม่ำเสมอ: cx = plot.x + band*(i+0.5) — ตรงกับที่ recharts วางแท่งทุกจำนวน
+// (ไม่ใช้ xScale เพราะ scaleBand คำนวณตำแหน่งเพี้ยนเมื่อมีหน่วยงานเดียว)
 function PerPeaTargets({ data }) {
-  const xScale = useXAxisScale();
   const yScale = useYAxisScale();
   const plot = usePlotArea();
-  if (!xScale || !yScale) return null;
-  const left = plot?.x || 0;
-  const band = typeof xScale.bandwidth === 'function' ? xScale.bandwidth() : 0;
-  const step = typeof xScale.step === 'function' ? xScale.step() : band;
-  const half = Math.min((step || band || 160) * 0.4, 80);
+  if (!yScale || !plot || !data.length) return null;
+  const band = plot.width / data.length;
+  const half = Math.min(band * 0.4, 80);
   const mark = (cx, v, color, key) => {
     const y = yScale(v);
     return (
@@ -45,8 +43,8 @@ function PerPeaTargets({ data }) {
   };
   return (
     <g>
-      {data.map((d) => {
-        const cx = left + xScale(d.pea) + band / 2;
+      {data.map((d, i) => {
+        const cx = plot.x + band * (i + 0.5);
         return (
           <g key={d.pea}>
             {d.targetYearly > 0 && mark(cx, d.targetYearly, TARGET_YEARLY_COLOR, 'ty')}
