@@ -1,6 +1,6 @@
 import { Component, useMemo, useRef, useState, useEffect } from 'react';
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
+  ComposedChart, Area, Line, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
 import { ChevronLeft, ChevronRight, Maximize2, X, Download, Trophy, ArrowUpDown } from 'lucide-react';
 
@@ -28,6 +28,7 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
   const [query, setQuery] = useState('');
   const [hidden, setHidden] = useState({});
   const [scale, setScale] = useState('linear');
+  const [chartType, setChartType] = useState('line'); // 'line' | 'bar'
   const [expanded, setExpanded] = useState(false);
   const [tableExpanded, setTableExpanded] = useState(false);
   const [sort, setSort] = useState({ key: 'pct', dir: 'desc' });
@@ -104,7 +105,9 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
             onClick={() => setHidden((h) => ({ ...h, [p.dataKey]: !h[p.dataKey] }))}
             className={`flex items-center gap-1.5 px-2 py-1 rounded-md border transition ${off ? 'opacity-40 line-through bg-gray-50' : 'bg-white shadow-sm'}`}
           >
-            <span className="inline-block w-5 h-0 border-t-2" style={{ borderColor: p.color, borderStyle: p.dataKey === 'result' ? 'solid' : 'dashed' }} />
+            {p.dataKey === 'result' && chartType === 'bar'
+              ? <span className="inline-block w-4 h-3 rounded-sm" style={{ background: p.color }} />
+              : <span className="inline-block w-5 h-0 border-t-2" style={{ borderColor: p.color, borderStyle: 'solid' }} />}
             {p.value}
           </button>
         );
@@ -114,6 +117,7 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
 
   const chart = (height, big) => {
   const n = rows.length;
+  const effScale = chartType === 'bar' ? 'linear' : scale; // โหมดแท่งใช้สเกลเส้นตรงเสมอ (log + แท่ง ทำให้ความยาวแท่งเพี้ยน)
   const angle = n > 30 ? -90 : n > 12 ? -60 : -25;
   const tickSize = (n > 30 ? 9 : n > 20 ? 11 : 12) + (big ? 2 : 0);
   const showLabels = n <= 25;
@@ -140,7 +144,7 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
   // คำนวณสเกลแกน Y เอง เพื่อรู้ตำแหน่งพิกเซลของแต่ละจุด แล้ววางตัวเลขให้ชิดจุดและไม่ทับกัน
   const MARGIN = { top: 28, right: 24, left: 0, bottom: 10 };
   const plotH = height - MARGIN.top - MARGIN.bottom - xHeight;
-  const tv = (v) => (scale === 'symlog' ? Math.log1p(Math.max(0, v)) : v);
+  const tv = (v) => (effScale === 'symlog' ? Math.log1p(Math.max(0, v)) : v);
   const rawMax = Math.max(1e-9, ...rows.flatMap((r) => visibleKeys.map((k) => r[k])));
   const niceStep = (() => {
     const need = (rawMax * 1.08) / 5;
@@ -148,7 +152,7 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
     return [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * exp).find((st) => st >= need) ?? 10 * exp;
   })();
   const yMax = niceStep * 5;
-  const yTicks = scale === 'linear' ? [0, 1, 2, 3, 4, 5].map((i) => +(i * niceStep).toPrecision(12)) : undefined;
+  const yTicks = effScale === 'linear' ? [0, 1, 2, 3, 4, 5].map((i) => +(i * niceStep).toPrecision(12)) : undefined;
   const pyOf = (v) => MARGIN.top + plotH * (1 - tv(v) / tv(yMax));
   const FS = 13 + (big ? 2 : 0);
   const gap = FS + 3;
@@ -168,16 +172,17 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
     }
     return out;
   };
-  const makeLabel = (key) => function SeriesLabel({ x, value, index }) {
+  const makeLabel = (key) => function SeriesLabel({ x, width, value, index }) {
     const row = rows[index];
     if (!row || value == null) return null; // index เก่าค้างตอนข้อมูลเปลี่ยน (เช่น เปลี่ยนตัวกรอง)
     const f = isFocus(row.pea);
     if (!showLabels && !f) return null;
     const y = layoutAt(row)[key];
     if (y == null) return null;
+    const cx = x + (width ? width / 2 : 0); // Bar ส่ง x=ขอบซ้าย+width, Line/Area ส่ง x=จุดกึ่งกลาง
     const color = key === 'result' && f ? '#b45309' : LABEL_COLOR[key];
     return (
-      <text x={x} y={y} textAnchor="middle" fontSize={f && key === 'result' ? FS + 2 : FS} fontWeight={key === 'result' ? 800 : 700}
+      <text x={cx} y={y} textAnchor="middle" fontSize={f && key === 'result' ? FS + 2 : FS} fontWeight={key === 'result' ? 800 : 700}
         fill={color} stroke="#fff" strokeWidth={3} paintOrder="stroke">
         {fmt(value)}
       </text>
@@ -202,24 +207,31 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="pea" interval={0} padding={{ left: 28, right: 28 }} height={xHeight} tick={<XTick />} />
-            <YAxis width={big ? 90 : 78} label={unit ? { value: unit, angle: -90, position: 'insideLeft', offset: big ? -6 : 4, style: { textAnchor: 'middle', fontSize: big ? 14 : 12, fill: '#6b7280' } } : undefined} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} scale={scale} domain={[0, yMax]} ticks={yTicks} allowDataOverflow />
+            <YAxis width={big ? 90 : 78} label={unit ? { value: unit, angle: -90, position: 'insideLeft', offset: big ? -6 : 4, style: { textAnchor: 'middle', fontSize: big ? 14 : 12, fill: '#6b7280' } } : undefined} tickFormatter={fmt} tick={{ fontSize: big ? 14 : 12 }} scale={effScale} domain={[0, yMax]} ticks={yTicks} allowDataOverflow />
             <Tooltip formatter={(v, n) => [`${fmt(v)}${unit ? ' ' + unit : ''}`, n]} />
-            <Area
-              type="monotone" dataKey="result" name="ผลดำเนินงาน" stroke="#3b82f6" strokeWidth={3}
-              fill="url(#resFill)" hide={!!hidden.result} animationDuration={700}
-              dot={<ResultDot />} activeDot={{ r: 9 }}
-            >
-              <LabelList dataKey="result" content={makeLabel('result')} />
-            </Area>
+            {chartType === 'bar' ? (
+              <Bar dataKey="result" name="ผลดำเนินงาน" hide={!!hidden.result} animationDuration={700} maxBarSize={n > 40 ? 12 : n > 20 ? 20 : 44} radius={[4, 4, 0, 0]}>
+                {rows.map((r) => <Cell key={r.pea} fill={isFocus(r.pea) ? '#f59e0b' : '#3b82f6'} />)}
+                <LabelList dataKey="result" content={makeLabel('result')} />
+              </Bar>
+            ) : (
+              <Area
+                type="monotone" dataKey="result" name="ผลดำเนินงาน" stroke="#3b82f6" strokeWidth={3}
+                fill="url(#resFill)" hide={!!hidden.result} animationDuration={700}
+                dot={<ResultDot />} activeDot={{ r: 9 }}
+              >
+                <LabelList dataKey="result" content={makeLabel('result')} />
+              </Area>
+            )}
             <Line
-              type="monotone" dataKey="targetYearly" name="เป้าหมายรายปี" stroke="#10b981" strokeWidth={2}
-              strokeDasharray="6 4" dot={n <= 25 ? { r: 3 } : false} hide={!!hidden.targetYearly} animationDuration={700}
+              type="monotone" dataKey="targetYearly" name="เป้าหมายรายปี" stroke="#10b981" strokeWidth={2.5}
+              dot={n <= 25 ? { r: 3 } : false} hide={!!hidden.targetYearly} isAnimationActive={false}
             >
               <LabelList dataKey="targetYearly" content={makeLabel('targetYearly')} />
             </Line>
             <Line
-              type="monotone" dataKey="targetLevel5" name="เป้าหมายระดับ 5" stroke="#ef4444" strokeWidth={2}
-              strokeDasharray="6 4" dot={n <= 25 ? { r: 3 } : false} hide={!!hidden.targetLevel5} animationDuration={700}
+              type="monotone" dataKey="targetLevel5" name="เป้าหมายระดับ 5" stroke="#ef4444" strokeWidth={2.5}
+              dot={n <= 25 ? { r: 3 } : false} hide={!!hidden.targetLevel5} isAnimationActive={false}
             >
               <LabelList dataKey="targetLevel5" content={makeLabel('targetLevel5')} />
             </Line>
@@ -302,10 +314,16 @@ function KpiChartRankingInner({ rawData, items, selectedItem, onSelectItem }) {
           {items.map((it) => <option key={it} value={it}>{descOf(it).slice(0, 60)}</option>)}
         </datalist>
         <span className="text-xs text-gray-400">{safeIdx + 1} / {items.length}</span>
-        <div className="inline-flex rounded-lg border overflow-hidden text-sm ml-auto" title="Log เหมาะเมื่อค่าต่างกันมาก (ค่า 0 แสดงได้ปกติ)">
+        <div className="inline-flex rounded-lg border overflow-hidden text-sm ml-auto" title="รูปแบบกราฟ">
+          {[['line', 'เส้น'], ['bar', 'แท่ง']].map(([v, l]) => (
+            <button key={v} type="button" onClick={() => setChartType(v)}
+              className={`px-3 py-1 ${chartType === v ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
+          ))}
+        </div>
+        <div className="inline-flex rounded-lg border overflow-hidden text-sm" title={chartType === 'bar' ? 'โหมดแท่งใช้สเกลเส้นตรงเสมอ' : 'Log เหมาะเมื่อค่าต่างกันมาก (ค่า 0 แสดงได้ปกติ)'}>
           {[['linear', 'เส้นตรง'], ['symlog', 'Log']].map(([v, l]) => (
-            <button key={v} type="button" onClick={() => setScale(v)}
-              className={`px-3 py-1 ${scale === v ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
+            <button key={v} type="button" disabled={chartType === 'bar'} onClick={() => setScale(v)}
+              className={`px-3 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${scale === v && chartType !== 'bar' ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
           ))}
         </div>
       </div>
