@@ -47,11 +47,12 @@ export function rankItemRows(entry) {
 
 // เรียงอันดับ "ภายในกลุ่ม (Group) เดียวกัน" — หน่วยงานเทียบกันเฉพาะหน่วยที่อยู่กลุ่มเดียวกัน
 // คืน ranks[pea] = อันดับในกลุ่ม, counts[pea] = จำนวนหน่วยงานในกลุ่มนั้นที่มีผลแล้ว
-export function rankItemRowsByGroup(entry) {
+export function rankItemRowsByGroup(entry, peaGroupMap = {}) {
   const byGroup = {};
   for (const row of Object.values(entry.rows)) {
     if (row.status === 'pending') continue;
-    (byGroup[row.group] ||= []).push(row);
+    const g = peaGroupMap[row.pea] || row.group; // ใช้กลุ่มหลักของหน่วยงาน (กันแถวที่พิมพ์กลุ่มผิด)
+    (byGroup[g] ||= []).push(row);
   }
   const ranks = {};
   const counts = {};

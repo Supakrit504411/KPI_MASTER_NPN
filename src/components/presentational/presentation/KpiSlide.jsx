@@ -151,10 +151,10 @@ function AllPeaChart({ entry, focusPeas }) {
   );
 }
 
-export default function KpiSlide({ entry, focusPeas, drill, onToggleDrill, footer }) {
+export default function KpiSlide({ entry, focusPeas, peaGroup, drill, onToggleDrill, footer }) {
   const { count } = rankItemRows(entry); // จำนวนทุกหน่วยงานที่มีผล (ใช้กับป้ายปุ่ม "ทุกหน่วยงาน")
-  // อันดับในการ์ด = เทียบเฉพาะหน่วยงานในกลุ่ม (Group) เดียวกัน
-  const { ranks, counts } = rankItemRowsByGroup(entry);
+  // อันดับในการ์ด = เทียบเฉพาะหน่วยงานในกลุ่ม (Group) เดียวกัน (ใช้กลุ่มหลัก กันข้อมูลแถวหลงกลุ่ม)
+  const { ranks, counts } = rankItemRowsByGroup(entry, peaGroup);
   // ข้อนี้มีคอลัมน์ "คิดเป็น" (% เทียบเป้าทั้งปี) หรือไม่ — ถ้ามีจึงแสดง % ทุกหน่วย (รวมที่เป็น 0)
   const itemHasPct = focusPeas.some((p) => entry.rows[p]?.percentage > 0);
   return (

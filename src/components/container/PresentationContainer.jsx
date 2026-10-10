@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Maximize, Minimize, Settings2, X, LayoutGrid } from 'lucide-react';
-import { getUniquePEAs, getUniqueGroups, MONITOR_PEAS } from '../../utils/parseCSV';
+import { getUniquePEAs, getUniqueGroups, getPeaGroupMap, MONITOR_PEAS } from '../../utils/parseCSV';
 import { buildItemIndex, buildPEAOverview, filterItems, ITEM_FILTERS, toImageUrl } from '../../utils/presentation';
 import { getCoverImageUrl } from '../../services/googleSheet';
 import CoverSlide from '../presentational/presentation/CoverSlide';
@@ -38,11 +38,7 @@ function useFitScale() {
 export default function PresentationContainer({ rawData, dataStatus, onExit }) {
   const allPeas = useMemo(() => getUniquePEAs(rawData), [rawData]);
   const groups = useMemo(() => getUniqueGroups(rawData), [rawData]);
-  const peaGroup = useMemo(() => {
-    const m = {};
-    for (const r of rawData) { if (r.pea && !(r.pea in m)) m[r.pea] = r.group || ''; }
-    return m;
-  }, [rawData]);
+  const peaGroup = useMemo(() => getPeaGroupMap(rawData), [rawData]); // กลุ่มหลักต่อหน่วยงาน (กันข้อมูลแถวหลงกลุ่ม)
   const index = useMemo(() => buildItemIndex(rawData), [rawData]);
   const saved = useMemo(loadSaved, []);
 
@@ -202,7 +198,7 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
       case 'matrix':
         return <MatrixSlide index={index} focusPeas={focusPeas} deckItems={deckItems} onJump={jumpToItem} footer={footer} />;
       case 'kpi':
-        return <KpiSlide entry={index.get(slide.item)} focusPeas={focusPeas} drill={drill} onToggleDrill={() => setDrill((v) => !v)} footer={footer} />;
+        return <KpiSlide entry={index.get(slide.item)} focusPeas={focusPeas} peaGroup={peaGroup} drill={drill} onToggleDrill={() => setDrill((v) => !v)} footer={footer} />;
       case 'summary':
         return <SummarySlide index={index} focusPeas={focusPeas} onJump={jumpToItem} footer={footer} />;
       default:
