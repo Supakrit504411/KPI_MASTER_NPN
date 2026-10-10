@@ -17,6 +17,7 @@ import ErrorMessage from '../presentational/ErrorMessage';
 import SummaryScoreTable from '../presentational/SummaryScoreTable';
 import PresentationContainer from './PresentationContainer';
 import PlanPresentationContainer from './PlanPresentationContainer';
+import PeaThailandReport from './PeaThailandReport';
 import { getUniqueItems } from '../../utils/parseCSV';
 import { getDataStatus, updateDataStatus } from '../../services/googleSheet';
 import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound, Filter, ChevronDown, Check, Search, X, ChevronLeft, ChevronRight, ListChecks, Eye, EyeOff } from 'lucide-react';
@@ -62,6 +63,7 @@ export default function DashboardContainer() {
   const [showComparison, setShowComparison] = useState(false);
   const [presenting, setPresenting] = useState(false);
   const [presentingPlan, setPresentingPlan] = useState(false);
+  const [showPeaThailand, setShowPeaThailand] = useState(false);
   const summaryTableRef = useRef(null);
   const scoreTableRef = useRef(null);
   const dataTableSectionRef = useRef(null);
@@ -278,9 +280,13 @@ export default function DashboardContainer() {
     return <PlanPresentationContainer onExit={() => setPresentingPlan(false)} />;
   }
 
+  if (showPeaThailand) {
+    return <PeaThailandReport onExit={() => setShowPeaThailand(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-surface">
-      <Header onRefresh={loadData} isLoading={isLoading} liff={liff} onPresent={() => setPresenting(true)} onPresentPlan={() => setPresentingPlan(true)} />
+      <Header onRefresh={loadData} isLoading={isLoading} liff={liff} onPresent={() => setPresenting(true)} onPresentPlan={() => setPresentingPlan(true)} onPeaThailand={() => setShowPeaThailand(true)} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {(selectedPEAs.length > 0 || selectedGroups.length > 0 || effectiveStatus) && (

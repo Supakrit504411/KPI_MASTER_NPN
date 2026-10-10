@@ -24,4 +24,16 @@ export async function fetchPlanData() {
   return out;
 }
 
+// ดึงข้อมูลชีต "Line-PEA" (สเปรดชีตเดียวกับแผนปฏิบัติ) สำหรับรายงาน PEA Thailand
+const LINE_PEA_GID = import.meta.env.VITE_LINE_PEA_GID || '1774951243';
+export async function fetchLinePeaData() {
+  try {
+    const url = `${BASE_URL}?tqx=out:csv&gid=${LINE_PEA_GID}`;
+    const res = await fetch(url);
+    return res.ok ? await res.text() : '';
+  } catch {
+    return '';
+  }
+}
+
 export { PLAN_SHEET_ID };
