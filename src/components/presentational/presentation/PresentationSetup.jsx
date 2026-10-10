@@ -1,17 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Search, ImagePlus, Trash2 } from 'lucide-react';
+import { X, Search, ImagePlus, Trash2, Monitor } from 'lucide-react';
 import { toast } from 'sonner';
+import { MONITOR_PEAS } from '../../../utils/parseCSV';
 import { levelOf, LEVEL_STYLE, ITEM_FILTERS, toImageUrl, fileToCoverDataUrl } from '../../../utils/presentation';
 
 const MAX_FOCUS = 6;
 
-export default function PresentationSetup({ index, allPeas, focusPeas, deckItems, itemFilter, onChangeFilter, onChangePeas, onChangeItems, focusItems, localCover, sheetCover, onChangeLocalCover, onClose }) {
+export default function PresentationSetup({ index, allPeas, groups = [], peaGroup = {}, focusPeas, deckItems, itemFilter, onChangeFilter, onChangePeas, onChangeItems, focusItems, localCover, sheetCover, onChangeLocalCover, onClose }) {
   const [q, setQ] = useState('');
+  const [groupFilter, setGroupFilter] = useState(''); // '' = ทุกกลุ่ม
   const [itemQuery, setItemQuery] = useState('');
   const itemsRef = useRef(null);
   const entries = [...index.values()];
-  const peaMatches = allPeas.filter((p) => p.includes(q.trim()));
+  const peaMatches = allPeas.filter((p) => p.includes(q.trim()) && (!groupFilter || peaGroup[p] === groupFilter));
   const shownEntries = itemQuery.trim() ? entries.filter((e) => e.item.includes(itemQuery.trim()) || e.description.includes(itemQuery.trim())) : entries;
+
+  const monitorInData = MONITOR_PEAS.filter((p) => allPeas.includes(p));
+  const setMonitor = () => onChangePeas(monitorInData.slice(0, MAX_FOCUS));
+  // เลือกทั้งกลุ่ม (สูงสุด 6) จากหน่วยงานที่ตรงกับตัวกรองปัจจุบัน
+  const selectGroup = () => onChangePeas(peaMatches.slice(0, MAX_FOCUS));
+  const isMonitor = focusPeas.length === monitorInData.length && monitorInData.every((p) => focusPeas.includes(p));
 
   // เปิดจากปุ่ม "เลือกข้อ" ที่ footer → เลื่อนมาที่ส่วนเลือกข้อทันที
   useEffect(() => {
@@ -81,9 +89,33 @@ export default function PresentationSetup({ index, allPeas, focusPeas, deckItems
           </section>
 
           <section>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <h4 className="font-semibold text-slate-700">หน่วยงานที่เปรียบเทียบ ({focusPeas.length}/{MAX_FOCUS})</h4>
+              {monitorInData.length > 0 && (
+                <button
+                  type="button"
+                  onClick={setMonitor}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border ${isMonitor ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Monitor className="w-3.5 h-3.5" /> Monitor ({monitorInData.length}PEA)
+                </button>
+              )}
             </div>
+
+            {/* ตัวกรองกลุ่ม */}
+            {groups.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mb-3 text-xs">
+                <span className="text-slate-500">กลุ่ม:</span>
+                <button type="button" onClick={() => setGroupFilter('')} className={`px-2.5 py-1 rounded-full border ${groupFilter === '' ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>ทั้งหมด</button>
+                {groups.map((g) => (
+                  <button key={g} type="button" onClick={() => setGroupFilter(groupFilter === g ? '' : g)} className={`px-2.5 py-1 rounded-full border ${groupFilter === g ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>{g}</button>
+                ))}
+                {groupFilter && peaMatches.length > 0 && (
+                  <button type="button" onClick={selectGroup} className="px-2.5 py-1 rounded-full border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100">เลือกกลุ่มนี้ (≤{MAX_FOCUS})</button>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2 mb-3">
               {focusPeas.map((p) => (
                 <button key={p} type="button" onClick={() => togglePea(p)} className="px-3 py-1 rounded-full bg-blue-600 text-white text-sm flex items-center gap-1">

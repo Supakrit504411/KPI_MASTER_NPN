@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Maximize, Minimize, Settings2, X, LayoutGrid } from 'lucide-react';
-import { getUniquePEAs, MONITOR_PEAS } from '../../utils/parseCSV';
+import { getUniquePEAs, getUniqueGroups, MONITOR_PEAS } from '../../utils/parseCSV';
 import { buildItemIndex, buildPEAOverview, filterItems, ITEM_FILTERS, toImageUrl } from '../../utils/presentation';
 import { getCoverImageUrl } from '../../services/googleSheet';
 import CoverSlide from '../presentational/presentation/CoverSlide';
@@ -37,6 +37,12 @@ function useFitScale() {
 
 export default function PresentationContainer({ rawData, dataStatus, onExit }) {
   const allPeas = useMemo(() => getUniquePEAs(rawData), [rawData]);
+  const groups = useMemo(() => getUniqueGroups(rawData), [rawData]);
+  const peaGroup = useMemo(() => {
+    const m = {};
+    for (const r of rawData) { if (r.pea && !(r.pea in m)) m[r.pea] = r.group || ''; }
+    return m;
+  }, [rawData]);
   const index = useMemo(() => buildItemIndex(rawData), [rawData]);
   const saved = useMemo(loadSaved, []);
 
@@ -259,6 +265,8 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
         <PresentationSetup
           index={index}
           allPeas={allPeas}
+          groups={groups}
+          peaGroup={peaGroup}
           focusPeas={focusPeas}
           deckItems={deckItems}
           itemFilter={itemFilter}
