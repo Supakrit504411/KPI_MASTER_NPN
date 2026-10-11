@@ -931,53 +931,74 @@ function NeuralNetBackground() {
     const particles = Array.from({ length: N }, (_, i) => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.35,
-      vy: (Math.random() - 0.5) * 0.35,
+      vx: (Math.random() - 0.5) * 1.3,
+      vy: (Math.random() - 0.5) * 1.3,
       r: Math.random() * 1.8 + 0.8,
       pulse: Math.random() * Math.PI * 2,
       // alternate gold / purple nodes
       color: i % 3 === 0 ? PEA_PURPLE : PEA_GOLD,
     }));
 
+    const LINK_DIST = 115;
+    const GRID = 55;
+
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // perspective grid — gold tint
-      ctx.lineWidth = 0.4;
-      const gs = 55;
-      for (let x = 0; x < canvas.width; x += gs) {
-        ctx.strokeStyle = rgba(PEA_GOLD, 0.05);
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-      }
-      for (let y = 0; y < canvas.height; y += gs) {
-        ctx.strokeStyle = rgba(PEA_GOLD, 0.04);
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-      }
-
       const t = Date.now() * 0.001;
 
-      // neural connections — blend gold↔purple by distance
+      // smart-grid floor: กริดเลื่อนทแยงอย่างต่อเนื่อง ให้ความรู้สึกว่าระบบกำลังทำงาน
+      ctx.lineWidth = 0.4;
+      const offX = (t * 26) % GRID;
+      const offY = (t * 16) % GRID;
+      for (let x = -GRID; x < canvas.width + GRID; x += GRID) {
+        ctx.strokeStyle = rgba(PEA_GOLD, 0.05);
+        ctx.beginPath(); ctx.moveTo(x + offX, 0); ctx.lineTo(x + offX, canvas.height); ctx.stroke();
+      }
+      for (let y = -GRID; y < canvas.height + GRID; y += GRID) {
+        ctx.strokeStyle = rgba(PEA_GOLD, 0.04);
+        ctx.beginPath(); ctx.moveTo(0, y + offY); ctx.lineTo(canvas.width, y + offY); ctx.stroke();
+      }
+
+      // สายส่ง + พัลส์พลังงานวิ่งไปตามสาย
       for (let i = 0; i < N; i++) {
         for (let j = i + 1; j < N; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
+          const ax = particles[i].x, ay = particles[i].y;
+          const bx = particles[j].x, by = particles[j].y;
+          const dx = ax - bx;
+          const dy = ay - by;
           const d  = Math.sqrt(dx * dx + dy * dy);
-          if (d < 115) {
-            const alpha = (1 - d / 115) * 0.28;
-            const mid   = d < 57 ? PEA_GOLD : PEA_PURPLE;
+          if (d >= LINK_DIST) continue;
+
+          const strength = 1 - d / LINK_DIST;
+          const mid = d < LINK_DIST / 2 ? PEA_GOLD : PEA_PURPLE;
+          ctx.beginPath();
+          ctx.strokeStyle = rgba(mid, strength * 0.28);
+          ctx.lineWidth   = 0.55;
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+
+          // พัลส์: จุดสว่างวิ่งจากปลายหนึ่งไปอีกปลาย ความเร็ว/เฟสต่างกันรายเส้น
+          if (strength > 0.35) {
+            const phase = (t * 0.9 + ((i * 7 + j * 13) % 10) / 10) % 1;
+            const px = ax + (bx - ax) * phase;
+            const py = ay + (by - ay) * phase;
+            const fade = Math.sin(phase * Math.PI);
+            const spark = ctx.createRadialGradient(px, py, 0, px, py, 4);
+            spark.addColorStop(0, rgba(mid, strength * fade * 0.9));
+            spark.addColorStop(1, rgba(mid, 0));
             ctx.beginPath();
-            ctx.strokeStyle = rgba(mid, alpha);
-            ctx.lineWidth   = 0.55;
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
+            ctx.arc(px, py, 4, 0, Math.PI * 2);
+            ctx.fillStyle = spark;
+            ctx.fill();
           }
         }
       }
 
       // nodes
       particles.forEach((p) => {
-        p.pulse += 0.025;
+        p.pulse += 0.06;
         const glow = 0.45 + Math.sin(p.pulse) * 0.3;
 
         // halo
@@ -1008,8 +1029,8 @@ function NeuralNetBackground() {
         { cx: 0.50, cy: 0.80, r:  90, c: PEA_GOLD,    a: 0.06 },
       ];
       orbDefs.forEach(({ cx, cy, r, c, a }, i) => {
-        const ox = canvas.width  * cx + Math.sin(t * 0.25 + i * 2.1) * 35;
-        const oy = canvas.height * cy + Math.cos(t * 0.18 + i * 1.7) * 45;
+        const ox = canvas.width  * cx + Math.sin(t * 0.55 + i * 2.1) * 35;
+        const oy = canvas.height * cy + Math.cos(t * 0.42 + i * 1.7) * 45;
         const og = ctx.createRadialGradient(ox, oy, 0, ox, oy, r);
         og.addColorStop(0, rgba(c, a));
         og.addColorStop(1, 'transparent');
