@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Maximize, Minimize, X, HelpCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Maximize, Minimize, X, HelpCircle, Image as ImageIcon, Upload, Trash2 } from 'lucide-react';
 import { fetchPlanData } from '../../services/planSheet';
 import { buildPlanDeck, GRADE_ORDER, gradeStyle } from '../../utils/parsePlan';
 import LoadingSpinner from '../presentational/LoadingSpinner';
@@ -7,6 +7,9 @@ import ErrorMessage from '../presentational/ErrorMessage';
 import PlanCoverSlide from '../presentational/presentation/plan/PlanCoverSlide';
 import PlanOverviewSlide from '../presentational/presentation/plan/PlanOverviewSlide';
 import PlanAreaSlide from '../presentational/presentation/plan/PlanAreaSlide';
+import ImageCoverSlide from '../presentational/presentation/ImageCoverSlide';
+
+const PLAN_COVER_KEY = 'pea-plan-presentation-cover';
 
 const SLIDE_W = 1600;
 const SLIDE_H = 900;
@@ -29,8 +32,22 @@ export default function PlanPresentationContainer({ onExit }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showLegend, setShowLegend] = useState(false);
+  const [showCoverPanel, setShowCoverPanel] = useState(false);
+  const [localCover, setLocalCover] = useState(() => {
+    try { return localStorage.getItem(PLAN_COVER_KEY) || ''; } catch { return ''; }
+  });
   const hideTimer = useRef(null);
   const scale = useFitScale();
+
+  const changeLocalCover = useCallback((dataUrl) => {
+    setLocalCover(dataUrl);
+    try {
+      if (dataUrl) localStorage.setItem(PLAN_COVER_KEY, dataUrl);
+      else localStorage.removeItem(PLAN_COVER_KEY);
+    } catch {
+      // พื้นที่เต็ม — ยังใช้งานต่อได้ในหน้าปัจจุบัน
+    }
+  }, []);
 
   const load = useCallback(() => {
     setError('');
@@ -75,6 +92,8 @@ export default function PlanPresentationContainer({ onExit }) {
   useEffect(() => {
     const onKey = (e) => {
       if (showLegend) { if (e.key === 'Escape') setShowLegend(false); return; }
+      if (showCoverPanel) { if (e.key === 'Escape') setShowCoverPanel(false); return; }
+      if (e.target instanceof HTMLInputElement) return;
       switch (e.key) {
         case 'ArrowRight': case 'PageDown': case ' ': e.preventDefault(); go(safeCurrent + 1); break;
         case 'ArrowLeft': case 'PageUp': e.preventDefault(); go(safeCurrent - 1); break;
@@ -87,7 +106,7 @@ export default function PlanPresentationContainer({ onExit }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, safeCurrent, slides.length, toggleFullscreen, onExit, showLegend]);
+  }, [go, safeCurrent, slides.length, toggleFullscreen, onExit, showLegend, showCoverPanel]);
 
   const pokeControls = useCallback(() => {
     setControlsVisible(true);
@@ -121,7 +140,10 @@ export default function PlanPresentationContainer({ onExit }) {
   const slide = slides[safeCurrent];
   const renderSlide = () => {
     switch (slide.type) {
-      case 'cover': return <PlanCoverSlide deck={deck} />;
+      case 'cover': {
+        const builtIn = <PlanCoverSlide deck={deck} />;
+        return localCover ? <ImageCoverSlide src={localCover} fallback={builtIn} /> : builtIn;
+      }
       case 'overview': return <PlanOverviewSlide deck={deck} footer={footer} />;
       case 'area': return <PlanAreaSlide area={slide.area} footer={footer} />;
       default: return null;
@@ -155,9 +177,25 @@ export default function PlanPresentationContainer({ onExit }) {
         <button type="button" onClick={() => setShowLegend(true)} className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium hover:bg-white/15">
           <HelpCircle className="w-4 h-4" /> เกณฑ์เกรด
         </button>
+        <button
+          type="button"
+          onClick={() => setShowCoverPanel(true)}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${localCover ? 'bg-amber-400 text-blue-900' : 'hover:bg-white/15'}`}
+          title="เปลี่ยนหน้าปก"
+        >
+          <ImageIcon className="w-4 h-4" /> หน้าปก
+        </button>
         <CtrlBtn title="เต็มจอ (F)" onClick={toggleFullscreen}>{isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}</CtrlBtn>
         <CtrlBtn title="ออก (Esc)" onClick={onExit}><X className="w-5 h-5" /></CtrlBtn>
       </div>
+
+      {showCoverPanel && (
+        <CoverPanel
+          localCover={localCover}
+          onChange={changeLocalCover}
+          onClose={() => setShowCoverPanel(false)}
+        />
+      )}
 
       {showLegend && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center p-8" onClick={() => setShowLegend(false)}>
@@ -192,5 +230,62 @@ function CtrlBtn({ title, onClick, children }) {
     <button type="button" title={title} onClick={onClick} className="p-2 rounded-full hover:bg-white/15 transition-colors">
       {children}
     </button>
+  );
+}
+
+function CoverPanel({ localCover, onChange, onClose }) {
+  const onPickFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onChange(String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
+  useEffect(() => {
+    const onPaste = (e) => {
+      const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
+      if (item) onPickFile(item.getAsFile());
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  });
+
+  return (
+    <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-6 z-10" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-slate-800">เปลี่ยนหน้าปก (แผนปฏิบัติ)</h3>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
+        </div>
+
+        <p className="text-sm text-slate-600 mb-4">
+          อัปโหลดรูป (เช่น export จาก Canva/PowerPoint ขนาด 16:9) หรือกด Ctrl+V วางรูปจากคลิปบอร์ด
+        </p>
+
+        {localCover ? (
+          <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+            <img src={localCover} alt="หน้าปก" className="w-full object-contain max-h-64 mx-auto block" />
+          </div>
+        ) : (
+          <div className="mb-4 border-2 border-dashed border-slate-300 rounded-xl py-10 text-center text-slate-400 bg-slate-50">
+            ยังไม่มีหน้าปกเอง · ใช้หน้าปกเริ่มต้นของระบบ
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white font-medium cursor-pointer hover:bg-blue-700">
+            <Upload className="w-4 h-4" /> เลือกรูป
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0])} />
+          </label>
+          {localCover && (
+            <button type="button" onClick={() => onChange('')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 text-red-700 font-medium hover:bg-red-100">
+              <Trash2 className="w-4 h-4" /> ลบหน้าปก
+            </button>
+          )}
+          <div className="flex-1" />
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-medium hover:bg-slate-200">ปิด</button>
+        </div>
+      </div>
+    </div>
   );
 }
