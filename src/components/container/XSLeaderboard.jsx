@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Search, Trophy, Medal, Award, RefreshCw, Camera, Monitor, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowLeft, Search, Trophy, Medal, Award, RefreshCw, Camera, Monitor, X, ArrowUpDown, ArrowUp, ArrowDown, Hash, Target, TrendingUp, Calendar } from 'lucide-react';
 import { fetchXSLeaderboard } from '../../services/xsRanking';
 
 // รายชื่อหน่วย XS ที่ต้อง monitor (ตามลำดับที่กำหนด)
@@ -53,6 +53,7 @@ export default function XSLeaderboard({ onExit }) {
   const [query, setQuery] = useState('');
   const [monitorOnly, setMonitorOnly] = useState(false);
   const [sort, setSort] = useState({ key: 'rank', dir: 'asc' });
+  const [detail, setDetail] = useState(null);
   const captureRef = useRef(null);
 
   const load = () => {
@@ -192,7 +193,7 @@ export default function XSLeaderboard({ onExit }) {
         </div>
       </header>
 
-      <main ref={captureRef} className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+      <main ref={captureRef} className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
         {monitorOnly && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800 flex items-center gap-2">
             <Monitor className="w-4 h-4" />
@@ -227,13 +228,13 @@ export default function XSLeaderboard({ onExit }) {
             <div className="p-10 text-center text-gray-500">ไม่พบข้อมูล</div>
           ) : (
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse table-fixed">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-gray-200">
-                    <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={toggleSort} align="center" className="w-20" />
+                    <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={toggleSort} align="center" className="w-[72px]" />
                     <SortHeader label="หน่วยงาน" sortKey="pea" sort={sort} onToggle={toggleSort} align="left" />
-                    <SortHeader label="รหัส" sortKey="code" sort={sort} onToggle={toggleSort} align="left" className="hidden sm:table-cell w-32" />
-                    <SortHeader label="คะแนน" sortKey="score" sort={sort} onToggle={toggleSort} align="right" className="w-24" />
+                    <SortHeader label="รหัส" sortKey="code" sort={sort} onToggle={toggleSort} align="left" className="hidden sm:table-cell w-[88px]" />
+                    <SortHeader label="คะแนน" sortKey="score" sort={sort} onToggle={toggleSort} align="right" className="w-[80px]" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -242,27 +243,28 @@ export default function XSLeaderboard({ onExit }) {
                     const highlighted = MONITOR_SET.has(row.pea);
                     return (
                       <tr key={row.raw}
-                        className={`transition-colors ${highlighted && !monitorOnly ? 'bg-amber-50/40 hover:bg-amber-50/70' : 'hover:bg-blue-50/40'}`}>
-                        <td className="px-3 py-2 text-center">
-                          <span className={`inline-flex items-center justify-center gap-1 min-w-[2.25rem] px-2 py-0.5 rounded-full text-sm font-bold ${badge.cls}`}>
+                        onClick={() => setDetail({ ...row, _total: data?.total || 0 })}
+                        className={`transition-all cursor-pointer group ${highlighted && !monitorOnly ? 'bg-amber-50/40 hover:bg-amber-50 hover:shadow-sm' : 'hover:bg-blue-50/60 hover:shadow-sm'}`}>
+                        <td className="px-2 py-2 text-center">
+                          <span className={`inline-flex items-center justify-center gap-0.5 min-w-[2rem] px-1.5 py-0.5 rounded-full text-sm font-bold group-hover:scale-110 transition-transform ${badge.cls}`}>
                             {badge.icon}
                             {row.rank}
                           </span>
                         </td>
-                        <td className="px-3 py-2">
-                          <div className="font-semibold text-slate-800 text-sm">
+                        <td className="px-2 py-2">
+                          <div className="font-semibold text-slate-800 text-sm group-hover:text-blue-700 group-hover:underline truncate">
                             {row.pea}
                             {highlighted && !monitorOnly && (
-                              <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded">
+                              <span className="ml-1.5 inline-flex items-center gap-0.5 px-1 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded align-middle">
                                 <Monitor className="w-2.5 h-2.5" />M
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-3 py-2 hidden sm:table-cell">
+                        <td className="px-2 py-2 hidden sm:table-cell">
                           <span className="text-xs text-gray-500 tabular-nums">{row.code}</span>
                         </td>
-                        <td className={`px-3 py-2 text-right text-sm font-bold tabular-nums ${scoreColor(row.score)}`}>
+                        <td className={`px-2 py-2 text-right text-sm font-bold tabular-nums ${scoreColor(row.score)}`}>
                           {row.score != null ? row.score.toFixed(3) : '–'}
                         </td>
                       </tr>
@@ -273,11 +275,105 @@ export default function XSLeaderboard({ onExit }) {
             </div>
           )}
         </div>
-
-        <div className="text-xs text-gray-500 text-center pb-4">
-          ข้อมูลจากชีต "จัดอันดับ XS" · แยกออกจาก dataset หลัก (L/M/S) เพื่อไม่กระทบตัวเลขรวม
-        </div>
       </main>
+      {detail && <DetailModal row={detail} rows={data?.rows || []} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+function DetailModal({ row, rows, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const total = rows.length;
+  const top = rows[0];
+  const gapTop = top && row.score != null && top.score != null ? top.score - row.score : null;
+  const passThreshold = 4.5;
+  const gapPass = row.score != null ? row.score - passThreshold : null;
+  const percentile = total > 0 ? Math.round(((total - row.rank + 1) / total) * 100) : 0;
+  const isMonitor = MONITOR_SET.has(row.pea);
+  const badge = rankBadge(row.rank);
+  const gradient = row.rank === 1 ? 'from-amber-500 to-orange-500'
+    : row.rank <= 3 ? 'from-orange-400 to-rose-500'
+    : row.score >= 5 ? 'from-emerald-500 to-teal-500'
+    : row.score >= 4.5 ? 'from-blue-500 to-indigo-500'
+    : 'from-slate-500 to-slate-700';
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        <div className={`bg-gradient-to-r ${gradient} px-6 py-5 text-white relative`}>
+          <button type="button" onClick={onClose}
+            className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/15 hover:bg-white/25" title="ปิด (Esc)">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2 text-sm text-white/85">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 font-bold`}>
+              {badge.icon}
+              #{row.rank}
+            </span>
+            <span>จาก {total} หน่วย · กลุ่ม XS</span>
+            {isMonitor && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-white/25 rounded text-[10px] font-semibold">
+                <Monitor className="w-2.5 h-2.5" />Monitor
+              </span>
+            )}
+          </div>
+          <div className="text-2xl font-bold mt-1.5">{row.pea}</div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-5xl font-bold tabular-nums">{row.score != null ? row.score.toFixed(3) : '–'}</span>
+            <span className="text-xl text-white/85">/ 5.000</span>
+          </div>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <div className="flex items-center justify-between text-sm text-slate-600 mb-1.5">
+              <span>คะแนน</span>
+              <span className="font-bold text-slate-800">{row.score != null ? ((row.score / 5) * 100).toFixed(1) : '–'}%</span>
+            </div>
+            <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className={`h-full bg-gradient-to-r ${gradient}`} style={{ width: `${Math.min((row.score || 0) / 5 * 100, 100)}%` }} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <InfoBox icon={<Hash className="w-4 h-4" />} label="รหัสหน่วย" value={row.code || '–'} />
+            <InfoBox icon={<Calendar className="w-4 h-4" />} label="รอบข้อมูล" value={row.period || '–'} />
+            <InfoBox icon={<Trophy className="w-4 h-4" />} label="Percentile" value={`${percentile}%`} tint="indigo" />
+            <InfoBox icon={<Target className="w-4 h-4" />} label="เทียบเกณฑ์ผ่าน" value={gapPass != null ? (gapPass >= 0 ? `+${gapPass.toFixed(3)}` : gapPass.toFixed(3)) : '–'} tint={gapPass != null && gapPass >= 0 ? 'emerald' : 'red'} />
+          </div>
+
+          {gapTop != null && gapTop > 0 && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 flex items-center gap-2 text-sm">
+              <TrendingUp className="w-4 h-4 text-indigo-600" />
+              <span className="text-slate-700">
+                ห่างอันดับ 1 (<span className="font-semibold">{top.pea}</span>) อยู่ <span className="font-bold text-indigo-700">{gapTop.toFixed(3)}</span> คะแนน
+              </span>
+            </div>
+          )}
+
+          <button type="button" onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-colors">
+            ปิด
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoBox({ icon, label, value, tint = 'slate' }) {
+  const map = {
+    slate: 'bg-slate-50 text-slate-700',
+    indigo: 'bg-indigo-50 text-indigo-700',
+    emerald: 'bg-emerald-50 text-emerald-700',
+    red: 'bg-red-50 text-red-700',
+  };
+  return (
+    <div className={`rounded-xl p-3 border border-black/5 ${map[tint] || map.slate}`}>
+      <div className="flex items-center gap-1.5 text-xs opacity-80">{icon}{label}</div>
+      <div className="mt-0.5 text-base font-bold tabular-nums">{value}</div>
     </div>
   );
 }
