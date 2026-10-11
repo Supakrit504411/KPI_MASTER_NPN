@@ -17,13 +17,13 @@ function PlanTooltip({ active, payload }) {
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px', fontSize: 16, maxWidth: 560, boxShadow: '0 6px 18px rgba(0,0,0,.12)' }}>
       <div style={{ fontWeight: 700, color: '#1e293b' }}>ข้อ {a.item} · เกรด {a.grade} ({st.label})</div>
       <div style={{ color: '#475569', marginTop: 4, lineHeight: 1.4 }}>{a.activity.slice(0, 180)}{a.activity.length > 180 ? '…' : ''}</div>
-      <div style={{ color: '#334155', marginTop: 6 }}>เป้าหมาย {num(a.targetSum ?? a.yearlyTarget, 2)} · ผลงาน {num(a.resultSum, 2)} {a.unit} · <b>{pct(a.resultPct)}</b></div>
+      <div style={{ color: '#334155', marginTop: 6 }}>เป้าหมาย {num(a.yearlyTarget, 2)} {a.unit} · ผลงาน {num(a.resultSum, 2)} · <b>{pct(a.quarterPct)}</b></div>
     </div>
   );
 }
 
 function AreaChart({ activities }) {
-  const data = activities.map((a) => ({ item: a.item, value: a.resultPct ?? 0, a }));
+  const data = activities.map((a) => ({ item: a.item, value: a.quarterPct ?? 0, a }));
   const maxPct = Math.max(100, ...data.map((d) => d.value));
   return (
     <BarChart width={CHART_W} height={CHART_H} data={data} margin={{ top: 28, right: 20, left: 0, bottom: 4 }}>
@@ -85,9 +85,9 @@ export default function PlanAreaSlide({ area, footer }) {
                   <tr key={a.item} className="border-t border-slate-100 text-slate-700" style={{ fontSize: 15 }}>
                     <td className="px-3 py-0.5 font-semibold">{a.item}</td>
                     <td className="px-3 py-0.5 truncate" title={a.activity}>{a.activity}</td>
-                    <td className="px-3 py-0.5 text-right tabular-nums">{num(a.targetSum ?? a.yearlyTarget, 2)} <span className="text-slate-400 text-xs">{a.unit}</span></td>
+                    <td className="px-3 py-0.5 text-right tabular-nums">{num(a.yearlyTarget, 2)} <span className="text-slate-400 text-xs">{a.unit}</span></td>
                     <td className="px-3 py-0.5 text-right tabular-nums">{num(a.resultSum, 2)}</td>
-                    <td className="px-3 py-0.5 text-right tabular-nums font-semibold" style={{ color: st.color }}>{pct(a.resultPct)}</td>
+                    <td className="px-3 py-0.5 text-right tabular-nums font-semibold" style={{ color: st.color }}>{pct(a.quarterPct)}</td>
                     <td className="px-3 py-0.5 text-center">
                       <span className="inline-flex w-8 h-8 rounded-lg items-center justify-center text-sm font-bold text-white" style={{ background: st.color }} title={st.desc}>{a.grade}</span>
                     </td>

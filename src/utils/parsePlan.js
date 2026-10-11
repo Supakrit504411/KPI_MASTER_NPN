@@ -104,8 +104,9 @@ export function summarizePlan(activities) {
   let pctCount = 0;
   for (const a of activities) {
     byGrade[a.grade] = (byGrade[a.grade] || 0) + 1;
-    if (a.resultPct != null) {
-      pctSum += a.resultPct;
+    const pctVal = a.quarterPct ?? a.resultPct;
+    if (pctVal != null) {
+      pctSum += pctVal;
       pctCount += 1;
     }
   }
