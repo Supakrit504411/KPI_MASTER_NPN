@@ -149,14 +149,14 @@ export async function passwordLogin(username, password) {
   }
 }
 
-export async function checkAccess(lineUserId) {
+export async function checkAccess(lineUserId, displayName) {
   const scriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL;
   if (!scriptUrl) return { allowed: true, role: 'admin' };
   try {
     const res = await fetch(scriptUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'checkAccess', lineUserId }),
+      body: JSON.stringify({ action: 'checkAccess', lineUserId, displayName }),
     });
     return await res.json();
   } catch {

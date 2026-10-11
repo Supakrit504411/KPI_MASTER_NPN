@@ -83,7 +83,7 @@ function doPost(e) {
     // ตรวจสอบสิทธิ์เข้าใช้งาน
     if (body.action === 'checkAccess') {
       var ss = SpreadsheetApp.openById(NOTE_API_SPREADSHEET_ID);
-      var result = noteApi_checkUserAccess(ss, body.lineUserId || '');
+      var result = noteApi_checkUserAccess(ss, body.lineUserId || '', body.displayName || '');
       return ContentService
         .createTextOutput(JSON.stringify(result))
         .setMimeType(ContentService.MimeType.JSON);
@@ -234,36 +234,51 @@ function noteApi_appendAccessLog(ss, info) {
 
 /**
  * ตรวจสอบว่า LINE User ID มีสิทธิ์เข้าใช้งานหรือไม่
- * ชีต AllowedUsers: คอลัมน์ A = LINE User ID, B = ชื่อ, C = สถานะ (Active/Blocked)
- * ถ้าไม่มีชีตหรือไม่มีชื่อ → สร้างชีตพร้อมเพิ่ม admin เริ่มต้น
+ * ชีต AllowedUsers: คอลัมน์ A = LINE User ID, B = ชื่อ, C = สถานะ, D = วันที่เพิ่ม, E = หมายเหตุ
+ *
+ * สถานะ:
+ *   - "Active"  → อนุญาตให้ใช้งาน
+ *   - "Blocked" → บัญชีถูกระงับ
+ *   - อื่นๆ / "Pending" / ว่าง → รอการอนุมัติ
+ *
+ * Default = ปิด: user ใหม่ที่ไม่อยู่ในรายชื่อจะถูกเพิ่มเข้าชีตอัตโนมัติ
+ * ในสถานะ "Pending" เพื่อให้ admin เห็นและเปลี่ยนเป็น "Active" ใน Google Sheet
  * admin (ADMIN_LINE_USER_ID) เข้าได้เสมอ
  */
-function noteApi_checkUserAccess(ss, lineUserId) {
+function noteApi_checkUserAccess(ss, lineUserId, lineDisplayName) {
   if (!lineUserId) return { success: true, allowed: false, reason: 'ไม่พบ LINE User ID' };
   if (lineUserId === ADMIN_LINE_USER_ID) return { success: true, allowed: true, role: 'admin' };
 
-  // เปิดให้ทุกคนเข้าได้ ยกเว้นคนที่ถูก Block
   var sheet = ss.getSheetByName(NOTE_API_USERS_SHEET);
   if (!sheet) {
     sheet = ss.insertSheet(NOTE_API_USERS_SHEET);
     sheet.appendRow(['LINE User ID', 'ชื่อ', 'สถานะ', 'วันที่เพิ่ม', 'หมายเหตุ']);
     sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#e8f0fe');
     sheet.setFrozenRows(1);
-    return { success: true, allowed: true, role: 'user' };
+    // เพิ่ม admin เริ่มต้น
+    var ts = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
+    sheet.appendRow([ADMIN_LINE_USER_ID, 'Admin', 'Active', ts, 'สร้างอัตโนมัติ']);
   }
 
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === lineUserId) {
       var status = String(data[i][2]).trim();
+      if (status === 'Active') {
+        return { success: true, allowed: true, role: 'user' };
+      }
       if (status === 'Blocked') {
         return { success: true, allowed: false, reason: 'บัญชีถูกระงับโดยผู้ดูแลระบบ' };
       }
-      return { success: true, allowed: true, role: 'user' };
+      // Pending หรือสถานะอื่นๆ
+      return { success: true, allowed: false, reason: 'บัญชีรอการอนุมัติจากผู้ดูแลระบบ กรุณาติดต่อ Admin' };
     }
   }
-  // ไม่อยู่ในรายชื่อ = อนุญาตเข้าได้ (ไม่ต้องเพิ่มก่อน)
-  return { success: true, allowed: true, role: 'user' };
+
+  // ไม่อยู่ในรายชื่อ → เพิ่มเป็น Pending อัตโนมัติ
+  var ts = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
+  sheet.appendRow([lineUserId, lineDisplayName || '(ไม่ทราบชื่อ)', 'Pending', ts, '']);
+  return { success: true, allowed: false, reason: 'บัญชีรอการอนุมัติจากผู้ดูแลระบบ กรุณาติดต่อ Admin' };
 }
 
 /**

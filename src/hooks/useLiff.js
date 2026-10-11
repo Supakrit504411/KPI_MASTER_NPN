@@ -20,7 +20,7 @@ export default function useLiff() {
         const p = await getProfile();
         setProfile(p);
         logAccess(p);
-        const result = await checkAccess(p?.userId || '');
+        const result = await checkAccess(p?.userId || '', p?.displayName || '');
         if (result.allowed) {
           setAccessStatus('allowed');
           setRole(result.role || 'user');
