@@ -27,12 +27,20 @@ function getPEAColor(peaName) {
 // ลำดับความสำคัญของกลุ่มเขต: จุดรวมงานมาก่อน แล้วค่อย รวม → S → XS
 // ใช้สำหรับจัดเรียง default เพื่อให้หน่วย "จุดรวมงาน" เช่น กฟส.นพ. ขึ้นมาก่อน
 const GROUP_PRIORITY_ORDER = ['จุดรวมงาน', 'รวม', 'S', 'XS'];
-function peaGroupPriority(districtRanking, pea) {
-  if (!districtRanking) return 99;
+// หากลุ่มเขตที่หน่วยงานนี้สังกัด พร้อมอันดับ/คะแนนจากชีต "จัดอันดับ"
+// ใช้เป็นแหล่งเดียวกับคอลัมน์อันดับในตาราง เพื่อให้ modal แสดงเลขตรงกัน
+function districtInfoOf(districtRanking, pea) {
+  if (!districtRanking) return null;
   for (let i = 0; i < GROUP_PRIORITY_ORDER.length; i++) {
-    if (districtRanking[GROUP_PRIORITY_ORDER[i]]?.[pea]) return i;
+    const group = GROUP_PRIORITY_ORDER[i];
+    const info = districtRanking[group]?.[pea];
+    if (info) return { group, priority: i, ...info };
   }
-  return 99;
+  return null;
+}
+
+function peaGroupPriority(districtRanking, pea) {
+  return districtInfoOf(districtRanking, pea)?.priority ?? 99;
 }
 
 function computeRankMap(summaries, districtRanking) {
@@ -140,7 +148,7 @@ function SortHeader({ label, sortKey, sort, onToggle, align = 'center', classNam
   );
 }
 
-function DetailModal({ summary, rank, onClose, onFilter }) {
+function DetailModal({ summary, rank, districtInfo, onClose, onFilter }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -149,12 +157,19 @@ function DetailModal({ summary, rank, onClose, onFilter }) {
   if (!summary) return null;
   const colors = getPEAColor(summary.pea);
   const pct = summary.totalScoreFull > 0 ? (summary.totalScoreNet / summary.totalScoreFull) * 100 : 0;
+  // ใช้อันดับจากชีต "จัดอันดับ" ให้ตรงกับคอลัมน์ในตาราง ถ้าไม่มีค่อย fallback เป็นอันดับที่คำนวณในแอป
+  const shownRank = districtInfo?.rank ?? rank;
+  const shownTotal = districtInfo?.total ?? summary._total;
+  const rankLabel = districtInfo ? `อันดับ (${districtInfo.group})` : 'อันดับในชุด';
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden">
         <div className={`bg-gradient-to-r ${colors.gradient} px-6 py-5 text-white relative`}>
           <button type="button" onClick={onClose} className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/15 hover:bg-white/25" title="ปิด (Esc)"><X className="w-5 h-5" /></button>
-          <div className="text-sm text-white/80">อันดับ {rank} จาก {summary._total || '—'}</div>
+          <div className="text-sm text-white/80">
+            อันดับ {shownRank ?? '—'} จาก {shownTotal || '—'}
+            {districtInfo && ` · ${districtInfo.group}`}
+          </div>
           <div className="text-3xl font-bold mt-1">{summary.pea}</div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-5xl font-bold tabular-nums">{summary.totalScoreNet}</span>
@@ -178,7 +193,7 @@ function DetailModal({ summary, rank, onClose, onFilter }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <StatBox icon={<Target className="w-5 h-5" />} label="อัตราผ่าน (ที่ประเมิน)" value={`${summary.passRate}%`} color="text-blue-600" bg="bg-blue-50" />
-            <StatBox icon={<Award className="w-5 h-5" />} label="อันดับในชุด" value={`#${rank}`} color="text-purple-600" bg="bg-purple-50" />
+            <StatBox icon={<Award className="w-5 h-5" />} label={rankLabel} value={shownRank != null ? `#${shownRank}` : '–'} color="text-purple-600" bg="bg-purple-50" />
           </div>
 
           {summary.weightedBreakdown && (
@@ -257,7 +272,15 @@ export default function PEASummaryTable({ summaries, activePEA, activeStatus, on
   return (
     <>
       {summaries.length > 8 ? <PEASummaryTableMode {...common} /> : <PEASummaryGrid {...common} />}
-      {detail && <DetailModal summary={{ ...detail, _total: summaries.length }} rank={rankMap[detail.pea]} onClose={() => setDetailPea(null)} onFilter={onCardClick} />}
+      {detail && (
+        <DetailModal
+          summary={{ ...detail, _total: summaries.length }}
+          rank={rankMap[detail.pea]}
+          districtInfo={districtInfoOf(districtRanking, detail.pea)}
+          onClose={() => setDetailPea(null)}
+          onFilter={onCardClick}
+        />
+      )}
     </>
   );
 }
