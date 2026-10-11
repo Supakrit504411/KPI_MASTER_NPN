@@ -77,22 +77,23 @@ export default function XSLeaderboard({ onExit }) {
     let rows = data.rows;
     if (monitorOnly) {
       rows = rows.filter((r) => MONITOR_SET.has(r.pea));
-      // เรียงตามลำดับที่กำหนดไว้ใน MONITOR_XS เสมอ ไม่สนใจ sort key
-      return [...rows].sort((a, b) => (MONITOR_ORDER.get(a.pea) ?? 99) - (MONITOR_ORDER.get(b.pea) ?? 99));
-    }
-    const q = query.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((r) =>
-        r.pea.toLowerCase().includes(q) ||
-        (r.code && r.code.toLowerCase().includes(q)) ||
-        (r.raw && r.raw.toLowerCase().includes(q))
-      );
+    } else {
+      const q = query.trim().toLowerCase();
+      if (q) {
+        rows = rows.filter((r) =>
+          r.pea.toLowerCase().includes(q) ||
+          (r.code && r.code.toLowerCase().includes(q)) ||
+          (r.raw && r.raw.toLowerCase().includes(q))
+        );
+      }
     }
     const getter = {
       rank: (r) => r.rank,
       pea: (r) => r.pea,
       code: (r) => r.code || '',
       score: (r) => r.score ?? -Infinity,
+      // ค่า default สำหรับโหมด monitor: เรียงตามลำดับที่ตั้งไว้ใน MONITOR_XS
+      monitor: (r) => MONITOR_ORDER.get(r.pea) ?? 99,
     }[sort.key] || ((r) => r.rank);
     const sorted = [...rows].sort((a, b) => {
       const va = getter(a), vb = getter(b);

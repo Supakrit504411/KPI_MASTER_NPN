@@ -117,7 +117,7 @@ function DistrictRankCell({ info, totalInGroup, compact = false }) {
       <span className={`inline-flex items-center justify-center ${sizeCls} px-2 py-0.5 rounded-full font-bold ${rankBadge(info.rank)}`}>
         {info.rank}
       </span>
-      <span className="text-[10px] text-gray-400 tabular-nums">
+      <span className="text-xs text-slate-600 font-semibold tabular-nums">
         /{totalInGroup} · {info.score != null ? info.score.toFixed(3) : '–'}
       </span>
     </div>
