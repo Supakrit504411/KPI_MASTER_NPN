@@ -9,10 +9,14 @@ const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:
 
 // ดึงชื่อหน่วยงานสั้นๆ จาก "D15z -รวม กฟส.อด.2-(L)" / "D06201 -กฟส.ธพ.-(S)"
 // รองรับทั้งแบบมี/ไม่มีช่องว่างหลังจุด เช่น "กฟส. ซำสูง"
+// ต้องคงคำนำหน้า "รวม" ไว้ เพราะชีตหลักใช้ชื่อ "รวม กฟส.อด.2" กับ "กฟส.อด.2"
+// เป็นคนละหน่วยงาน ถ้าตัดทิ้งทั้งสองกลุ่มจะชนกันที่ key เดียว
 function extractPeaName(raw) {
   const s = String(raw ?? '').trim();
-  const m = s.match(/กฟ[สจฟ]\.\s*[^\s\-()]+/);
-  return m ? m[0].replace(/\s+/g, '') : '';
+  const m = s.match(/(รวม)?\s*(กฟ[สจฟ]\.\s*[^\s\-()]+)/);
+  if (!m) return '';
+  const name = m[2].replace(/\s+/g, '');
+  return m[1] ? `รวม ${name}` : name;
 }
 
 function toNumber(v) {
