@@ -217,7 +217,7 @@ export default function XSLeaderboard({ onExit }) {
             <div className="p-10 text-center text-gray-500">ไม่พบข้อมูล</div>
           ) : (
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="w-auto mx-auto border-collapse">
+              <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-gray-200">
                     <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={toggleSort} align="center" />
