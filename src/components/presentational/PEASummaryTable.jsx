@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { CheckCircle2, XCircle, Clock, Trophy, ArrowUpDown, ArrowUp, ArrowDown, X, Target, Award } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, ArrowUpDown, ArrowUp, ArrowDown, X, Target, Award } from 'lucide-react';
 
 const COLOR_PALETTE = [
   { gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
@@ -42,6 +42,15 @@ function computeRankMap(summaries) {
   return map;
 }
 
+// อ่านอันดับของหน่วยงานในกลุ่มที่ระบุจากข้อมูลที่ทางเขตจัดทำ
+// คืน null ถ้าไม่มีในกลุ่มนั้น (เพื่อให้แสดง "–")
+function districtRankOf(districtRanking, group, pea) {
+  if (!districtRanking) return null;
+  const g = districtRanking[group];
+  if (!g) return null;
+  return g[pea] || null;
+}
+
 function rankBadge(rank) {
   if (rank === 1) return 'bg-amber-100 text-amber-700 ring-1 ring-amber-300';
   if (rank === 2) return 'bg-slate-100 text-slate-700 ring-1 ring-slate-300';
@@ -58,22 +67,44 @@ const SORT_KEYS = {
   totalScoreNet: (s) => s.totalScoreNet,
   weightedPct: (s) => s.weightedPct ?? 0,
   rank: (s, ranks) => ranks[s.pea] || 999,
+  // อันดับจากข้อมูลเขต (3 กลุ่ม) — ไม่มีให้ไปท้ายตาราง
+  rankRuam: (s, _r, dr) => (districtRankOf(dr, 'รวม', s.pea)?.rank ?? 999),
+  rankJuan: (s, _r, dr) => (districtRankOf(dr, 'จุดรวมงาน', s.pea)?.rank ?? 999),
+  rankS: (s, _r, dr) => (districtRankOf(dr, 'S', s.pea)?.rank ?? 999),
 };
 
-function useSortedSummaries(summaries, rankMap) {
+function useSortedSummaries(summaries, rankMap, districtRanking) {
   const [sort, setSort] = useState({ key: 'rank', dir: 'asc' });
   const sorted = useMemo(() => {
     const getter = SORT_KEYS[sort.key] || SORT_KEYS.rank;
     const arr = [...summaries].sort((a, b) => {
-      const va = getter(a, rankMap);
-      const vb = getter(b, rankMap);
+      const va = getter(a, rankMap, districtRanking);
+      const vb = getter(b, rankMap, districtRanking);
       if (typeof va === 'string') return sort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
       return sort.dir === 'asc' ? (va - vb) : (vb - va);
     });
     return arr;
-  }, [summaries, rankMap, sort]);
+  }, [summaries, rankMap, districtRanking, sort]);
   const toggle = (key) => setSort((s) => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'pea' ? 'asc' : (key === 'rank' ? 'asc' : 'desc') });
   return { sorted, sort, toggle };
+}
+
+// Cell ที่แสดงอันดับจากกลุ่มของทางเขต (หรือ "–" ถ้าไม่มี)
+function DistrictRankCell({ info, totalInGroup, compact = false }) {
+  if (!info) {
+    return <span className="text-gray-300 text-sm">–</span>;
+  }
+  const sizeCls = compact ? 'text-sm min-w-[2.25rem]' : 'text-sm min-w-[2.5rem]';
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span className={`inline-flex items-center justify-center ${sizeCls} px-2 py-0.5 rounded-full font-bold ${rankBadge(info.rank)}`}>
+        {info.rank}
+      </span>
+      <span className="text-[10px] text-gray-400 tabular-nums">
+        /{totalInGroup} · {info.score != null ? info.score.toFixed(3) : '–'}
+      </span>
+    </div>
+  );
 }
 
 function SortHeader({ label, sortKey, sort, onToggle, align = 'center', className = '' }) {
@@ -188,15 +219,16 @@ function StatBox({ icon, label, value, color, bg }) {
   );
 }
 
-export default function PEASummaryTable({ summaries, activePEA, activeStatus, onCardClick }) {
+export default function PEASummaryTable({ summaries, activePEA, activeStatus, onCardClick, districtRanking }) {
   const [detailPea, setDetailPea] = useState(null);
   const rankMap = useMemo(() => computeRankMap(summaries), [summaries]);
-  const { sorted, sort, toggle } = useSortedSummaries(summaries, rankMap);
+  const { sorted, sort, toggle } = useSortedSummaries(summaries, rankMap, districtRanking);
   const detail = detailPea ? summaries.find((s) => s.pea === detailPea) : null;
 
   const common = {
     summaries: sorted,
     rankMap,
+    districtRanking,
     sort,
     onToggle: toggle,
     activePEA,
@@ -214,7 +246,10 @@ export default function PEASummaryTable({ summaries, activePEA, activeStatus, on
 }
 
 // ตาราง ≤ 8 PEA
-function PEASummaryGrid({ summaries, rankMap, sort, onToggle, activePEA, activeStatus, onCardClick, onOpenDetail }) {
+function PEASummaryGrid({ summaries, rankMap, districtRanking, sort, onToggle, activePEA, activeStatus, onCardClick, onOpenDetail }) {
+  const totalRuam = districtRanking?.['รวม'] ? Object.keys(districtRanking['รวม']).length : 0;
+  const totalJuan = districtRanking?.['จุดรวมงาน'] ? Object.keys(districtRanking['จุดรวมงาน']).length : 0;
+  const totalS = districtRanking?.['S'] ? Object.keys(districtRanking['S']).length : 0;
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
@@ -226,16 +261,15 @@ function PEASummaryGrid({ summaries, rankMap, sort, onToggle, activePEA, activeS
               <SortHeader label="ไม่ผ่าน" sortKey="failed" sort={sort} onToggle={onToggle} />
               <SortHeader label="รอผล" sortKey="pending" sort={sort} onToggle={onToggle} />
               <SortHeader label="อัตราผ่าน" sortKey="passRate" sort={sort} onToggle={onToggle} className="min-w-[130px]" />
-              <SortHeader label="คะแนนรวม" sortKey="totalScoreNet" sort={sort} onToggle={onToggle} />
-              <SortHeader label="ถ่วงน้ำหนัก" sortKey="weightedPct" sort={sort} onToggle={onToggle} />
-              <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ (รวม)" sortKey="rankRuam" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ (จุดรวมงาน)" sortKey="rankJuan" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ (S)" sortKey="rankS" sort={sort} onToggle={onToggle} />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {summaries.map((summary) => {
               const colors = getPEAColor(summary.pea);
               const isThisPEAActive = activePEA === summary.pea;
-              const rank = rankMap[summary.pea];
               return (
                 <tr key={summary.pea}
                   onClick={() => onOpenDetail(summary.pea)}
@@ -265,19 +299,13 @@ function PEASummaryGrid({ summaries, rankMap, sort, onToggle, activePEA, activeS
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                    <div className="flex items-center justify-center gap-1">
-                      <Trophy className="w-4 h-4 text-amber-500" />
-                      <span className={`font-bold text-base ${colors.text}`}>{summary.totalScoreNet}</span>
-                      <span className="text-gray-400 text-sm">/{summary.totalScoreFull}</span>
-                    </div>
+                    <DistrictRankCell info={districtRankOf(districtRanking, 'รวม', summary.pea)} totalInGroup={totalRuam} />
                   </td>
                   <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                    <span className="font-bold text-base text-indigo-700" title="คะแนนตามน้ำหนัก 30/30/20 ของเขต (ฐาน 80% ที่ประกาศแล้ว)">
-                      {summary.weightedPct != null ? `${summary.weightedPct.toFixed(2)}%` : '–'}
-                    </span>
+                    <DistrictRankCell info={districtRankOf(districtRanking, 'จุดรวมงาน', summary.pea)} totalInGroup={totalJuan} />
                   </td>
                   <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                    <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>{rank}</span>
+                    <DistrictRankCell info={districtRankOf(districtRanking, 'S', summary.pea)} totalInGroup={totalS} />
                   </td>
                 </tr>
               );
@@ -301,7 +329,10 @@ function StatusCell({ count, active, onClick, icon, activeCls }) {
 }
 
 // ตาราง > 8 PEA (table mode)
-function PEASummaryTableMode({ summaries, rankMap, sort, onToggle, activePEA, activeStatus, onCardClick, onOpenDetail }) {
+function PEASummaryTableMode({ summaries, rankMap, districtRanking, sort, onToggle, activePEA, activeStatus, onCardClick, onOpenDetail }) {
+  const totalRuam = districtRanking?.['รวม'] ? Object.keys(districtRanking['รวม']).length : 0;
+  const totalJuan = districtRanking?.['จุดรวมงาน'] ? Object.keys(districtRanking['จุดรวมงาน']).length : 0;
+  const totalS = districtRanking?.['S'] ? Object.keys(districtRanking['S']).length : 0;
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
@@ -313,16 +344,15 @@ function PEASummaryTableMode({ summaries, rankMap, sort, onToggle, activePEA, ac
               <SortHeader label="ไม่ผ่าน" sortKey="failed" sort={sort} onToggle={onToggle} />
               <SortHeader label="รอผล" sortKey="pending" sort={sort} onToggle={onToggle} />
               <SortHeader label="อัตราผ่าน" sortKey="passRate" sort={sort} onToggle={onToggle} className="min-w-[120px]" />
-              <SortHeader label="คะแนนรวม" sortKey="totalScoreNet" sort={sort} onToggle={onToggle} />
-              <SortHeader label="ถ่วงน้ำหนัก" sortKey="weightedPct" sort={sort} onToggle={onToggle} />
-              <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ (รวม)" sortKey="rankRuam" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ (จุดรวมงาน)" sortKey="rankJuan" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ (S)" sortKey="rankS" sort={sort} onToggle={onToggle} />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {summaries.map((summary) => {
               const colors = getPEAColor(summary.pea);
               const isThisPEAActive = activePEA === summary.pea;
-              const rank = rankMap[summary.pea];
               return (
                 <tr key={summary.pea}
                   onClick={() => onOpenDetail(summary.pea)}
@@ -361,17 +391,13 @@ function PEASummaryTableMode({ summaries, rankMap, sort, onToggle, activePEA, ac
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
-                    <span className={`font-bold text-sm ${colors.text}`}>
-                      {summary.totalScoreNet}<span className="text-gray-400 font-normal text-xs">/{summary.totalScoreFull}</span>
-                    </span>
+                    <DistrictRankCell info={districtRankOf(districtRanking, 'รวม', summary.pea)} totalInGroup={totalRuam} compact />
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
-                    <span className="font-bold text-sm text-indigo-700" title="คะแนนตามน้ำหนัก 30/30/20 ของเขต (ฐาน 80% ที่ประกาศแล้ว)">
-                      {summary.weightedPct != null ? `${summary.weightedPct.toFixed(2)}%` : '–'}
-                    </span>
+                    <DistrictRankCell info={districtRankOf(districtRanking, 'จุดรวมงาน', summary.pea)} totalInGroup={totalJuan} compact />
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
-                    <span className={`inline-flex items-center justify-center min-w-[2.25rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>{rank}</span>
+                    <DistrictRankCell info={districtRankOf(districtRanking, 'S', summary.pea)} totalInGroup={totalS} compact />
                   </td>
                 </tr>
               );

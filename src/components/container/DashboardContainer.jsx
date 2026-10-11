@@ -20,6 +20,7 @@ import PlanPresentationContainer from './PlanPresentationContainer';
 import PeaThailandReport from './PeaThailandReport';
 import { getUniqueItems } from '../../utils/parseCSV';
 import { getDataStatus, updateDataStatus } from '../../services/googleSheet';
+import { fetchDistrictRanking } from '../../services/rankingSheet';
 import { Monitor, Layers, LogIn, ShieldX, Camera, Settings, KeyRound, Filter, ChevronDown, Check, Search, X, ChevronLeft, ChevronRight, ListChecks, Eye, EyeOff } from 'lucide-react';
 
 export default function DashboardContainer() {
@@ -58,6 +59,7 @@ export default function DashboardContainer() {
     setChartDriven(true);
   };
   const [dataStatus, setDataStatus] = useState('');
+  const [districtRanking, setDistrictRanking] = useState(null);
   const [editingStatus, setEditingStatus] = useState(false);
   const [statusDraft, setStatusDraft] = useState('');
   const [showComparison, setShowComparison] = useState(false);
@@ -74,6 +76,7 @@ export default function DashboardContainer() {
 
   useEffect(() => {
     getDataStatus().then((v) => setDataStatus(v));
+    fetchDistrictRanking().then((r) => setDistrictRanking(r));
   }, []);
 
   const handleSaveDataStatus = async () => {
@@ -467,6 +470,7 @@ export default function DashboardContainer() {
             activePEA={effectivePEA}
             activeStatus={effectiveStatus}
             onCardClick={handlePEACardClick}
+            districtRanking={districtRanking}
           />
         </section>
 
