@@ -18,6 +18,7 @@ import SummaryScoreTable from '../presentational/SummaryScoreTable';
 import PresentationContainer from './PresentationContainer';
 import PlanPresentationContainer from './PlanPresentationContainer';
 import PeaThailandReport from './PeaThailandReport';
+import XSLeaderboard from './XSLeaderboard';
 import { getUniqueItems } from '../../utils/parseCSV';
 import { getDataStatus, updateDataStatus } from '../../services/googleSheet';
 import { fetchDistrictRanking } from '../../services/rankingSheet';
@@ -66,6 +67,7 @@ export default function DashboardContainer() {
   const [presenting, setPresenting] = useState(false);
   const [presentingPlan, setPresentingPlan] = useState(false);
   const [showPeaThailand, setShowPeaThailand] = useState(false);
+  const [showXSBoard, setShowXSBoard] = useState(false);
   const summaryTableRef = useRef(null);
   const scoreTableRef = useRef(null);
   const dataTableSectionRef = useRef(null);
@@ -283,13 +285,16 @@ export default function DashboardContainer() {
     return <PlanPresentationContainer onExit={() => setPresentingPlan(false)} />;
   }
 
+  if (showXSBoard) {
+    return <XSLeaderboard onExit={() => setShowXSBoard(false)} />;
+  }
   if (showPeaThailand) {
     return <PeaThailandReport onExit={() => setShowPeaThailand(false)} />;
   }
 
   return (
     <div className="min-h-screen bg-surface">
-      <Header onRefresh={loadData} isLoading={isLoading} liff={liff} onPresent={() => setPresenting(true)} onPresentPlan={() => setPresentingPlan(true)} onPeaThailand={() => setShowPeaThailand(true)} />
+      <Header onRefresh={loadData} isLoading={isLoading} liff={liff} onPresent={() => setPresenting(true)} onPresentPlan={() => setPresentingPlan(true)} onPeaThailand={() => setShowPeaThailand(true)} onXSBoard={() => setShowXSBoard(true)} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {(selectedPEAs.length > 0 || selectedGroups.length > 0 || effectiveStatus) && (
