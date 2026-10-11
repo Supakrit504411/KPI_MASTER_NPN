@@ -16,8 +16,8 @@ function FocusTooltip({ active, payload, unit }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px', fontSize: 18, boxShadow: '0 6px 18px rgba(0,0,0,.12)', lineHeight: 1.5 }}>
       <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{d.pea}</div>
-      <div style={{ color: '#334155' }}>ผลดำเนินงาน: <b>{fmt(d.value)}</b> {unit}</div>
-      {d.target > 0 && <div style={{ color: TARGET_LEVEL5_COLOR }}>เป้าระดับ 5: <b>{fmt(d.target)}</b> {unit}</div>}
+      <div style={{ color: '#334155' }}>ผลดำเนินงาน: <b>{fmt(d.value)}</b></div>
+      {d.target > 0 && <div style={{ color: TARGET_LEVEL5_COLOR }}>เป้าระดับ 5: <b>{fmt(d.target)}</b></div>}
       {d.targetYearly > 0 && <div style={{ color: TARGET_YEARLY_COLOR }}>เป้าทั้งปี: <b>{fmt(d.targetYearly)}</b> {unit}</div>}
     </div>
   );

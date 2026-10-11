@@ -24,16 +24,40 @@ function getPEAColor(peaName) {
   return color;
 }
 
+// คำนวณอันดับจากคะแนนรวม (คะแนนเท่ากัน -> อันดับเดียวกัน)
+function computeRankMap(summaries) {
+  const sorted = [...summaries].sort((a, b) => (b.totalScoreNet || 0) - (a.totalScoreNet || 0));
+  const map = {};
+  let lastScore = null;
+  let lastRank = 0;
+  sorted.forEach((s, i) => {
+    const score = s.totalScoreNet || 0;
+    const rank = score === lastScore ? lastRank : i + 1;
+    map[s.pea] = rank;
+    lastScore = score;
+    lastRank = rank;
+  });
+  return map;
+}
+
+function rankBadge(rank) {
+  if (rank === 1) return 'bg-amber-100 text-amber-700 ring-1 ring-amber-300';
+  if (rank === 2) return 'bg-slate-100 text-slate-700 ring-1 ring-slate-300';
+  if (rank === 3) return 'bg-orange-100 text-orange-700 ring-1 ring-orange-300';
+  return 'bg-gray-50 text-gray-600 ring-1 ring-gray-200';
+}
+
 export default function PEASummaryTable({ summaries, activePEA, activeStatus, onCardClick }) {
+  const rankMap = computeRankMap(summaries);
   const count = summaries.length;
   if (count > 8) {
-    return <PEASummaryTableMode summaries={summaries} activePEA={activePEA} activeStatus={activeStatus} onCardClick={onCardClick} />;
+    return <PEASummaryTableMode summaries={summaries} rankMap={rankMap} activePEA={activePEA} activeStatus={activeStatus} onCardClick={onCardClick} />;
   }
-  return <PEASummaryGrid summaries={summaries} activePEA={activePEA} activeStatus={activeStatus} onCardClick={onCardClick} />;
+  return <PEASummaryGrid summaries={summaries} rankMap={rankMap} activePEA={activePEA} activeStatus={activeStatus} onCardClick={onCardClick} />;
 }
 
 // ตาราง ≤ 8 PEA
-function PEASummaryGrid({ summaries, activePEA, activeStatus, onCardClick }) {
+function PEASummaryGrid({ summaries, rankMap, activePEA, activeStatus, onCardClick }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
@@ -46,12 +70,14 @@ function PEASummaryGrid({ summaries, activePEA, activeStatus, onCardClick }) {
               <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">รอผล</th>
               <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap min-w-[130px]">อัตราผ่าน</th>
               <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">คะแนนรวม</th>
+              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">อันดับ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {summaries.map((summary) => {
               const colors = getPEAColor(summary.pea);
               const isThisPEAActive = activePEA === summary.pea;
+              const rank = rankMap[summary.pea];
 
               return (
                 <tr
@@ -120,6 +146,11 @@ function PEASummaryGrid({ summaries, activePEA, activeStatus, onCardClick }) {
                       <span className="text-gray-400 text-sm">/{summary.totalScoreFull}</span>
                     </div>
                   </td>
+                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                    <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>
+                      {rank}
+                    </span>
+                  </td>
                 </tr>
               );
             })}
@@ -131,7 +162,7 @@ function PEASummaryGrid({ summaries, activePEA, activeStatus, onCardClick }) {
 }
 
 // ตาราง > 8 PEA (table mode)
-function PEASummaryTableMode({ summaries, activePEA, activeStatus, onCardClick }) {
+function PEASummaryTableMode({ summaries, rankMap, activePEA, activeStatus, onCardClick }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
@@ -144,12 +175,14 @@ function PEASummaryTableMode({ summaries, activePEA, activeStatus, onCardClick }
               <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">รอผล</th>
               <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap min-w-[120px]">อัตราผ่าน</th>
               <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">คะแนนรวม</th>
+              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">อันดับ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {summaries.map((summary) => {
               const colors = getPEAColor(summary.pea);
               const isThisPEAActive = activePEA === summary.pea;
+              const rank = rankMap[summary.pea];
 
               return (
                 <tr key={summary.pea} className={`transition-colors ${isThisPEAActive ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
@@ -202,6 +235,11 @@ function PEASummaryTableMode({ summaries, activePEA, activeStatus, onCardClick }
                   <td className="px-3 py-2 text-center whitespace-nowrap">
                     <span className={`font-bold text-sm ${colors.text}`}>
                       {summary.totalScoreNet}<span className="text-gray-400 font-normal text-xs">/{summary.totalScoreFull}</span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                    <span className={`inline-flex items-center justify-center min-w-[2.25rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>
+                      {rank}
                     </span>
                   </td>
                 </tr>
