@@ -25,12 +25,15 @@ function getPEAColor(peaName) {
 }
 
 function computeRankMap(summaries) {
-  const sorted = [...summaries].sort((a, b) => (b.totalScoreNet || 0) - (a.totalScoreNet || 0));
+  // อันดับใช้คะแนนถ่วงน้ำหนัก (weightedPct) ตามเกณฑ์เขต
+  // ถ้ายังไม่มี weightedPct ให้ fallback เป็นคะแนนรวมเดิม
+  const scoreOf = (s) => (s.weightedPct != null ? s.weightedPct : (s.totalScoreNet || 0));
+  const sorted = [...summaries].sort((a, b) => scoreOf(b) - scoreOf(a));
   const map = {};
   let lastScore = null;
   let lastRank = 0;
   sorted.forEach((s, i) => {
-    const score = s.totalScoreNet || 0;
+    const score = scoreOf(s);
     const rank = score === lastScore ? lastRank : i + 1;
     map[s.pea] = rank;
     lastScore = score;
@@ -53,6 +56,7 @@ const SORT_KEYS = {
   pending: (s) => s.pending,
   passRate: (s) => s.passRate,
   totalScoreNet: (s) => s.totalScoreNet,
+  weightedPct: (s) => s.weightedPct ?? 0,
   rank: (s, ranks) => ranks[s.pea] || 999,
 };
 
@@ -128,6 +132,40 @@ function DetailModal({ summary, rank, onClose, onFilter }) {
             <StatBox icon={<Target className="w-5 h-5" />} label="อัตราผ่าน (ที่ประเมิน)" value={`${summary.passRate}%`} color="text-blue-600" bg="bg-blue-50" />
             <StatBox icon={<Award className="w-5 h-5" />} label="อันดับในชุด" value={`#${rank}`} color="text-purple-600" bg="bg-purple-50" />
           </div>
+
+          {summary.weightedBreakdown && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm font-semibold text-indigo-800">คะแนนถ่วงน้ำหนัก (ตามเกณฑ์เขต)</div>
+                <div className="text-2xl font-bold text-indigo-700 tabular-nums">
+                  {summary.weightedPct != null ? `${summary.weightedPct.toFixed(2)}%` : '–'}
+                </div>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-slate-500">
+                    <th className="text-left font-medium py-1">กลุ่ม</th>
+                    <th className="text-right font-medium py-1">น้ำหนัก</th>
+                    <th className="text-right font-medium py-1">คะแนน</th>
+                    <th className="text-right font-medium py-1">%</th>
+                  </tr>
+                </thead>
+                <tbody className="text-slate-700">
+                  {summary.weightedBreakdown.map((g) => (
+                    <tr key={g.label} className="border-t border-indigo-100">
+                      <td className="py-1">{g.label}</td>
+                      <td className="py-1 text-right tabular-nums">{g.weight}%</td>
+                      <td className="py-1 text-right tabular-nums">{g.net.toFixed(2)}/{g.full.toFixed(2)}</td>
+                      <td className="py-1 text-right tabular-nums font-semibold">{g.pct != null ? `${g.pct.toFixed(1)}%` : '–'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-2 text-xs text-slate-500">
+                * ฐานน้ำหนัก {summary.knownWeight}% ที่ประกาศแล้ว · อีก {100 - summary.knownWeight}% ยังไม่ประกาศ
+              </div>
+            </div>
+          )}
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={() => { onFilter(summary.pea, null); onClose(); }}
               className={`flex-1 py-2.5 rounded-xl bg-gradient-to-r ${colors.gradient} text-white font-semibold hover:brightness-110 shadow`}>
@@ -189,6 +227,7 @@ function PEASummaryGrid({ summaries, rankMap, sort, onToggle, activePEA, activeS
               <SortHeader label="รอผล" sortKey="pending" sort={sort} onToggle={onToggle} />
               <SortHeader label="อัตราผ่าน" sortKey="passRate" sort={sort} onToggle={onToggle} className="min-w-[130px]" />
               <SortHeader label="คะแนนรวม" sortKey="totalScoreNet" sort={sort} onToggle={onToggle} />
+              <SortHeader label="ถ่วงน้ำหนัก" sortKey="weightedPct" sort={sort} onToggle={onToggle} />
               <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={onToggle} />
             </tr>
           </thead>
@@ -233,6 +272,11 @@ function PEASummaryGrid({ summaries, rankMap, sort, onToggle, activePEA, activeS
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                    <span className="font-bold text-base text-indigo-700" title="คะแนนตามน้ำหนัก 30/30/20 ของเขต (ฐาน 80% ที่ประกาศแล้ว)">
+                      {summary.weightedPct != null ? `${summary.weightedPct.toFixed(2)}%` : '–'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
                     <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>{rank}</span>
                   </td>
                 </tr>
@@ -270,6 +314,7 @@ function PEASummaryTableMode({ summaries, rankMap, sort, onToggle, activePEA, ac
               <SortHeader label="รอผล" sortKey="pending" sort={sort} onToggle={onToggle} />
               <SortHeader label="อัตราผ่าน" sortKey="passRate" sort={sort} onToggle={onToggle} className="min-w-[120px]" />
               <SortHeader label="คะแนนรวม" sortKey="totalScoreNet" sort={sort} onToggle={onToggle} />
+              <SortHeader label="ถ่วงน้ำหนัก" sortKey="weightedPct" sort={sort} onToggle={onToggle} />
               <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={onToggle} />
             </tr>
           </thead>
@@ -318,6 +363,11 @@ function PEASummaryTableMode({ summaries, rankMap, sort, onToggle, activePEA, ac
                   <td className="px-3 py-2 text-center whitespace-nowrap">
                     <span className={`font-bold text-sm ${colors.text}`}>
                       {summary.totalScoreNet}<span className="text-gray-400 font-normal text-xs">/{summary.totalScoreFull}</span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                    <span className="font-bold text-sm text-indigo-700" title="คะแนนตามน้ำหนัก 30/30/20 ของเขต (ฐาน 80% ที่ประกาศแล้ว)">
+                      {summary.weightedPct != null ? `${summary.weightedPct.toFixed(2)}%` : '–'}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">

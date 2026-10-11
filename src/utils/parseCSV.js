@@ -157,6 +157,44 @@ export function getPEAsByGroup(data, groupName) {
   return peas;
 }
 
+// น้ำหนักตามเกณฑ์เขต (รวม 80% ยังไม่ประกาศอีก 20%)
+// เมื่อประกาศแล้ว ปรับแก้ที่ตารางนี้ที่เดียว
+export const SCORE_WEIGHTS = [
+  { label: 'กลุ่ม A (ข้อ 1–8)', min: 1, max: 8, weight: 30 },
+  { label: 'กลุ่ม B (ข้อ 9–39)', min: 9, max: 39, weight: 30 },
+  { label: 'กลุ่ม C (ข้อ 40–42)', min: 40, max: 42, weight: 20 },
+];
+const KNOWN_WEIGHT_SUM = SCORE_WEIGHTS.reduce((s, g) => s + g.weight, 0); // = 80
+
+// ดึงเลขข้อหลัก (ตัวเลขก่อนจุด) จาก item เช่น "1.1" -> 1
+function itemMajor(item) {
+  const n = Number.parseInt(String(item ?? '').trim(), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function computeWeightedPct(rows) {
+  let weightedSum = 0;
+  let totalWeightUsed = 0;
+  const breakdown = [];
+  for (const g of SCORE_WEIGHTS) {
+    const inGroup = rows.filter((r) => {
+      const m = itemMajor(r.item);
+      return m != null && m >= g.min && m <= g.max;
+    });
+    const net = inGroup.reduce((s, r) => s + r.scoreNet, 0);
+    const full = inGroup.reduce((s, r) => s + r.scoreFull, 0);
+    const pct = full > 0 ? (net / full) * 100 : null;
+    if (pct != null) {
+      weightedSum += pct * g.weight;
+      totalWeightUsed += g.weight;
+    }
+    breakdown.push({ ...g, net, full, pct });
+  }
+  // ปรับฐานเป็น 100% ของน้ำหนักที่ประกาศแล้ว เพื่อให้อันดับเทียบกันได้
+  const normalized = totalWeightUsed > 0 ? weightedSum / totalWeightUsed : 0;
+  return { weightedPct: normalized, weightedBreakdown: breakdown, knownWeight: KNOWN_WEIGHT_SUM };
+}
+
 function summarizeRows(rows, labelKey) {
   const total = rows.length;
   const passed = rows.filter((row) => row.status === 'passed').length;
@@ -166,6 +204,7 @@ function summarizeRows(rows, labelKey) {
   const totalScoreNet = rows.reduce((sum, row) => sum + row.scoreNet, 0);
   const totalScoreFull = rows.reduce((sum, row) => sum + row.scoreFull, 0);
   const percentage = totalScoreFull > 0 ? (totalScoreNet / totalScoreFull) * 100 : 0;
+  const { weightedPct, weightedBreakdown, knownWeight } = computeWeightedPct(rows);
 
   return {
     [labelKey]: rows[0]?.[labelKey] ?? '',
@@ -177,6 +216,9 @@ function summarizeRows(rows, labelKey) {
     totalScoreNet: Math.round(totalScoreNet * 100) / 100,
     totalScoreFull: Math.round(totalScoreFull * 100) / 100,
     percentage: Math.round(percentage * 100) / 100,
+    weightedPct: Math.round(weightedPct * 100) / 100,
+    weightedBreakdown,
+    knownWeight,
     passRate: evaluated > 0 ? Math.round((passed / evaluated) * 100) : 0,
   };
 }
