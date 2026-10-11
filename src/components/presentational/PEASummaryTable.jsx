@@ -1,4 +1,5 @@
-import { CheckCircle2, XCircle, Clock, Trophy } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { CheckCircle2, XCircle, Clock, Trophy, ArrowUpDown, ArrowUp, ArrowDown, X, Target, Award } from 'lucide-react';
 
 const COLOR_PALETTE = [
   { gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
@@ -15,7 +16,6 @@ const COLOR_PALETTE = [
 
 const colorCache = {};
 let colorIndex = 0;
-
 function getPEAColor(peaName) {
   if (colorCache[peaName]) return colorCache[peaName];
   const color = COLOR_PALETTE[colorIndex % COLOR_PALETTE.length];
@@ -24,7 +24,6 @@ function getPEAColor(peaName) {
   return color;
 }
 
-// คำนวณอันดับจากคะแนนรวม (คะแนนเท่ากัน -> อันดับเดียวกัน)
 function computeRankMap(summaries) {
   const sorted = [...summaries].sort((a, b) => (b.totalScoreNet || 0) - (a.totalScoreNet || 0));
   const map = {};
@@ -47,30 +46,150 @@ function rankBadge(rank) {
   return 'bg-gray-50 text-gray-600 ring-1 ring-gray-200';
 }
 
+const SORT_KEYS = {
+  pea: (s) => s.pea,
+  passed: (s) => s.passed,
+  failed: (s) => s.failed,
+  pending: (s) => s.pending,
+  passRate: (s) => s.passRate,
+  totalScoreNet: (s) => s.totalScoreNet,
+  rank: (s, ranks) => ranks[s.pea] || 999,
+};
+
+function useSortedSummaries(summaries, rankMap) {
+  const [sort, setSort] = useState({ key: 'rank', dir: 'asc' });
+  const sorted = useMemo(() => {
+    const getter = SORT_KEYS[sort.key] || SORT_KEYS.rank;
+    const arr = [...summaries].sort((a, b) => {
+      const va = getter(a, rankMap);
+      const vb = getter(b, rankMap);
+      if (typeof va === 'string') return sort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sort.dir === 'asc' ? (va - vb) : (vb - va);
+    });
+    return arr;
+  }, [summaries, rankMap, sort]);
+  const toggle = (key) => setSort((s) => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'pea' ? 'asc' : (key === 'rank' ? 'asc' : 'desc') });
+  return { sorted, sort, toggle };
+}
+
+function SortHeader({ label, sortKey, sort, onToggle, align = 'center', className = '' }) {
+  const active = sort.key === sortKey;
+  const alignCls = align === 'left' ? 'text-left justify-start' : align === 'right' ? 'text-right justify-end' : 'text-center justify-center';
+  return (
+    <th className={`px-3 py-2.5 text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap ${alignCls.split(' ')[0]} ${className}`}>
+      <button type="button" onClick={() => onToggle(sortKey)}
+        className={`inline-flex items-center gap-1 ${alignCls.split(' ')[1]} w-full px-1.5 py-0.5 rounded transition-colors ${active ? 'text-blue-700 bg-blue-50' : 'hover:bg-gray-100'}`}>
+        <span>{label}</span>
+        {active
+          ? (sort.dir === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />)
+          : <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />}
+      </button>
+    </th>
+  );
+}
+
+function DetailModal({ summary, rank, onClose, onFilter }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  if (!summary) return null;
+  const colors = getPEAColor(summary.pea);
+  const pct = summary.totalScoreFull > 0 ? (summary.totalScoreNet / summary.totalScoreFull) * 100 : 0;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden">
+        <div className={`bg-gradient-to-r ${colors.gradient} px-6 py-5 text-white relative`}>
+          <button type="button" onClick={onClose} className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/15 hover:bg-white/25" title="ปิด (Esc)"><X className="w-5 h-5" /></button>
+          <div className="text-sm text-white/80">อันดับ {rank} จาก {summary._total || '—'}</div>
+          <div className="text-3xl font-bold mt-1">{summary.pea}</div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-5xl font-bold tabular-nums">{summary.totalScoreNet}</span>
+            <span className="text-xl text-white/80">/ {summary.totalScoreFull} คะแนน</span>
+          </div>
+        </div>
+        <div className="p-6 space-y-5">
+          <div>
+            <div className="flex items-center justify-between text-sm text-slate-600 mb-1.5">
+              <span>คิดเป็นคะแนน</span>
+              <span className="font-bold text-slate-800">{pct.toFixed(1)}%</span>
+            </div>
+            <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className={`h-full ${pct >= 50 ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <StatBox icon={<CheckCircle2 className="w-5 h-5" />} label="ผ่าน" value={summary.passed} color="text-emerald-600" bg="bg-emerald-50" />
+            <StatBox icon={<XCircle className="w-5 h-5" />} label="ไม่ผ่าน" value={summary.failed} color="text-red-600" bg="bg-red-50" />
+            <StatBox icon={<Clock className="w-5 h-5" />} label="รอผล" value={summary.pending} color="text-amber-600" bg="bg-amber-50" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <StatBox icon={<Target className="w-5 h-5" />} label="อัตราผ่าน (ที่ประเมิน)" value={`${summary.passRate}%`} color="text-blue-600" bg="bg-blue-50" />
+            <StatBox icon={<Award className="w-5 h-5" />} label="อันดับในชุด" value={`#${rank}`} color="text-purple-600" bg="bg-purple-50" />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={() => { onFilter(summary.pea, null); onClose(); }}
+              className={`flex-1 py-2.5 rounded-xl bg-gradient-to-r ${colors.gradient} text-white font-semibold hover:brightness-110 shadow`}>
+              ดูเฉพาะหน่วยงานนี้
+            </button>
+            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold">ปิด</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatBox({ icon, label, value, color, bg }) {
+  return (
+    <div className={`${bg} rounded-xl p-3 border border-black/5`}>
+      <div className={`flex items-center gap-1.5 ${color} text-sm font-medium`}>{icon}{label}</div>
+      <div className={`mt-1 text-2xl font-bold ${color}`}>{value}</div>
+    </div>
+  );
+}
+
 export default function PEASummaryTable({ summaries, activePEA, activeStatus, onCardClick }) {
-  const rankMap = computeRankMap(summaries);
-  const count = summaries.length;
-  if (count > 8) {
-    return <PEASummaryTableMode summaries={summaries} rankMap={rankMap} activePEA={activePEA} activeStatus={activeStatus} onCardClick={onCardClick} />;
-  }
-  return <PEASummaryGrid summaries={summaries} rankMap={rankMap} activePEA={activePEA} activeStatus={activeStatus} onCardClick={onCardClick} />;
+  const [detailPea, setDetailPea] = useState(null);
+  const rankMap = useMemo(() => computeRankMap(summaries), [summaries]);
+  const { sorted, sort, toggle } = useSortedSummaries(summaries, rankMap);
+  const detail = detailPea ? summaries.find((s) => s.pea === detailPea) : null;
+
+  const common = {
+    summaries: sorted,
+    rankMap,
+    sort,
+    onToggle: toggle,
+    activePEA,
+    activeStatus,
+    onCardClick,
+    onOpenDetail: (pea) => setDetailPea(pea),
+  };
+
+  return (
+    <>
+      {summaries.length > 8 ? <PEASummaryTableMode {...common} /> : <PEASummaryGrid {...common} />}
+      {detail && <DetailModal summary={{ ...detail, _total: summaries.length }} rank={rankMap[detail.pea]} onClose={() => setDetailPea(null)} onFilter={onCardClick} />}
+    </>
+  );
 }
 
 // ตาราง ≤ 8 PEA
-function PEASummaryGrid({ summaries, rankMap, activePEA, activeStatus, onCardClick }) {
+function PEASummaryGrid({ summaries, rankMap, sort, onToggle, activePEA, activeStatus, onCardClick, onOpenDetail }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-auto min-w-full border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-3 py-2.5 text-left text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">หน่วยงาน</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">ผ่าน</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">ไม่ผ่าน</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">รอผล</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap min-w-[130px]">อัตราผ่าน</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">คะแนนรวม</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">อันดับ</th>
+              <SortHeader label="หน่วยงาน" sortKey="pea" sort={sort} onToggle={onToggle} align="left" />
+              <SortHeader label="ผ่าน" sortKey="passed" sort={sort} onToggle={onToggle} />
+              <SortHeader label="ไม่ผ่าน" sortKey="failed" sort={sort} onToggle={onToggle} />
+              <SortHeader label="รอผล" sortKey="pending" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อัตราผ่าน" sortKey="passRate" sort={sort} onToggle={onToggle} className="min-w-[130px]" />
+              <SortHeader label="คะแนนรวม" sortKey="totalScoreNet" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={onToggle} />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -78,65 +197,32 @@ function PEASummaryGrid({ summaries, rankMap, activePEA, activeStatus, onCardCli
               const colors = getPEAColor(summary.pea);
               const isThisPEAActive = activePEA === summary.pea;
               const rank = rankMap[summary.pea];
-
               return (
-                <tr
-                  key={summary.pea}
-                  className={`transition-colors ${isThisPEAActive ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                >
+                <tr key={summary.pea}
+                  onClick={() => onOpenDetail(summary.pea)}
+                  className={`transition-all cursor-pointer group ${isThisPEAActive ? 'bg-blue-50' : 'hover:bg-gradient-to-r hover:from-blue-50/60 hover:to-transparent hover:shadow-sm'}`}>
                   <td className="px-3 py-2.5">
-                    <button onClick={() => onCardClick(summary.pea, null)} className="flex items-center gap-2 text-left whitespace-nowrap">
-                      <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${colors.gradient} flex-shrink-0`} />
-                      <span className={`font-semibold text-base ${colors.text}`}>{summary.pea}</span>
-                    </button>
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${colors.gradient} flex-shrink-0 group-hover:scale-125 transition-transform`} />
+                      <span className={`font-semibold text-base ${colors.text} group-hover:underline`}>{summary.pea}</span>
+                    </div>
                   </td>
-                  <td className="px-3 py-2.5 text-center">
-                    <button
-                      onClick={() => onCardClick(summary.pea, activeStatus === 'passed' ? null : 'passed')}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-base transition-all
-                        ${activeStatus === 'passed' && isThisPEAActive
-                          ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-300'
-                          : 'text-gray-700 hover:bg-gray-100'}`}
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span className="font-bold">{summary.passed}</span>
-                    </button>
-                  </td>
-                  <td className="px-3 py-2.5 text-center">
-                    <button
-                      onClick={() => onCardClick(summary.pea, activeStatus === 'failed' ? null : 'failed')}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-base transition-all
-                        ${activeStatus === 'failed' && isThisPEAActive
-                          ? 'bg-red-100 text-red-700 ring-2 ring-red-300'
-                          : 'text-gray-700 hover:bg-gray-100'}`}
-                    >
-                      <XCircle className="w-4 h-4 text-red-500" />
-                      <span className="font-bold">{summary.failed}</span>
-                    </button>
-                  </td>
-                  <td className="px-3 py-2.5 text-center">
-                    <button
-                      onClick={() => onCardClick(summary.pea, activeStatus === 'pending' ? null : 'pending')}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-base transition-all
-                        ${activeStatus === 'pending' && isThisPEAActive
-                          ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-300'
-                          : 'text-gray-700 hover:bg-gray-100'}`}
-                    >
-                      <Clock className="w-4 h-4 text-amber-500" />
-                      <span className="font-bold">{summary.pending}</span>
-                    </button>
-                  </td>
+                  <StatusCell count={summary.passed} active={activeStatus === 'passed' && isThisPEAActive}
+                    onClick={(e) => { e.stopPropagation(); onCardClick(summary.pea, activeStatus === 'passed' ? null : 'passed'); }}
+                    icon={<CheckCircle2 className="w-4 h-4 text-emerald-500" />} activeCls="bg-emerald-100 text-emerald-700 ring-2 ring-emerald-300" />
+                  <StatusCell count={summary.failed} active={activeStatus === 'failed' && isThisPEAActive}
+                    onClick={(e) => { e.stopPropagation(); onCardClick(summary.pea, activeStatus === 'failed' ? null : 'failed'); }}
+                    icon={<XCircle className="w-4 h-4 text-red-500" />} activeCls="bg-red-100 text-red-700 ring-2 ring-red-300" />
+                  <StatusCell count={summary.pending} active={activeStatus === 'pending' && isThisPEAActive}
+                    onClick={(e) => { e.stopPropagation(); onCardClick(summary.pea, activeStatus === 'pending' ? null : 'pending'); }}
+                    icon={<Clock className="w-4 h-4 text-amber-500" />} activeCls="bg-amber-100 text-amber-700 ring-2 ring-amber-300" />
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden min-w-[60px]">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-500 ${summary.passRate >= 50 ? 'bg-emerald-500' : 'bg-red-500'}`}
-                          style={{ width: `${(summary.passed / Math.max(summary.total, 1)) * 100}%` }}
-                        />
+                        <div className={`h-2 rounded-full transition-all duration-500 ${summary.passRate >= 50 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                          style={{ width: `${(summary.passed / Math.max(summary.total, 1)) * 100}%` }} />
                       </div>
-                      <span className={`text-sm font-bold w-11 text-right whitespace-nowrap ${summary.passRate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {summary.passRate}%
-                      </span>
+                      <span className={`text-sm font-bold w-11 text-right whitespace-nowrap ${summary.passRate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>{summary.passRate}%</span>
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-center whitespace-nowrap">
@@ -147,9 +233,7 @@ function PEASummaryGrid({ summaries, rankMap, activePEA, activeStatus, onCardCli
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                    <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>
-                      {rank}
-                    </span>
+                    <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>{rank}</span>
                   </td>
                 </tr>
               );
@@ -161,21 +245,32 @@ function PEASummaryGrid({ summaries, rankMap, activePEA, activeStatus, onCardCli
   );
 }
 
+function StatusCell({ count, active, onClick, icon, activeCls }) {
+  return (
+    <td className="px-3 py-2.5 text-center">
+      <button type="button" onClick={onClick}
+        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-base transition-all ${active ? activeCls : 'text-gray-700 hover:bg-gray-100'}`}>
+        {icon}<span className="font-bold">{count}</span>
+      </button>
+    </td>
+  );
+}
+
 // ตาราง > 8 PEA (table mode)
-function PEASummaryTableMode({ summaries, rankMap, activePEA, activeStatus, onCardClick }) {
+function PEASummaryTableMode({ summaries, rankMap, sort, onToggle, activePEA, activeStatus, onCardClick, onOpenDetail }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-auto min-w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-3 py-2.5 text-left text-sm font-semibold text-gray-600 uppercase tracking-wide sticky left-0 bg-gray-50 z-20 whitespace-nowrap">หน่วยงาน</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">ผ่าน</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">ไม่ผ่าน</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">รอผล</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap min-w-[120px]">อัตราผ่าน</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">คะแนนรวม</th>
-              <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 uppercase tracking-wide bg-gray-50 whitespace-nowrap">อันดับ</th>
+              <SortHeader label="หน่วยงาน" sortKey="pea" sort={sort} onToggle={onToggle} align="left" className="sticky left-0 z-20" />
+              <SortHeader label="ผ่าน" sortKey="passed" sort={sort} onToggle={onToggle} />
+              <SortHeader label="ไม่ผ่าน" sortKey="failed" sort={sort} onToggle={onToggle} />
+              <SortHeader label="รอผล" sortKey="pending" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อัตราผ่าน" sortKey="passRate" sort={sort} onToggle={onToggle} className="min-w-[120px]" />
+              <SortHeader label="คะแนนรวม" sortKey="totalScoreNet" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={onToggle} />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -183,53 +278,41 @@ function PEASummaryTableMode({ summaries, rankMap, activePEA, activeStatus, onCa
               const colors = getPEAColor(summary.pea);
               const isThisPEAActive = activePEA === summary.pea;
               const rank = rankMap[summary.pea];
-
               return (
-                <tr key={summary.pea} className={`transition-colors ${isThisPEAActive ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                  <td className="px-3 py-2 sticky left-0 bg-white z-10 whitespace-nowrap">
-                    <button onClick={() => onCardClick(summary.pea, null)} className="flex items-center gap-2 text-left">
-                      <div className={`w-2.5 h-2.5 rounded-full bg-gradient-to-r ${colors.gradient} flex-shrink-0`} />
-                      <span className={`font-semibold text-sm ${colors.text}`}>{summary.pea}</span>
-                    </button>
+                <tr key={summary.pea}
+                  onClick={() => onOpenDetail(summary.pea)}
+                  className={`transition-all cursor-pointer group ${isThisPEAActive ? 'bg-blue-50' : 'hover:bg-gradient-to-r hover:from-blue-50/60 hover:to-transparent'}`}>
+                  <td className={`px-3 py-2 sticky left-0 z-10 whitespace-nowrap ${isThisPEAActive ? 'bg-blue-50' : 'bg-white group-hover:bg-blue-50/60'}`}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full bg-gradient-to-r ${colors.gradient} flex-shrink-0 group-hover:scale-125 transition-transform`} />
+                      <span className={`font-semibold text-sm ${colors.text} group-hover:underline`}>{summary.pea}</span>
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
-                    <button
-                      onClick={() => onCardClick(summary.pea, activeStatus === 'passed' ? null : 'passed')}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm transition-all
-                        ${activeStatus === 'passed' && isThisPEAActive ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 font-bold' : 'text-gray-700 font-bold'}`}
-                    >
+                    <button type="button" onClick={(e) => { e.stopPropagation(); onCardClick(summary.pea, activeStatus === 'passed' ? null : 'passed'); }}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm transition-all ${activeStatus === 'passed' && isThisPEAActive ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 font-bold' : 'text-gray-700 font-bold hover:bg-gray-100'}`}>
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />{summary.passed}
                     </button>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
-                    <button
-                      onClick={() => onCardClick(summary.pea, activeStatus === 'failed' ? null : 'failed')}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm transition-all
-                        ${activeStatus === 'failed' && isThisPEAActive ? 'bg-red-100 text-red-700 ring-1 ring-red-300 font-bold' : 'text-gray-700 font-bold'}`}
-                    >
+                    <button type="button" onClick={(e) => { e.stopPropagation(); onCardClick(summary.pea, activeStatus === 'failed' ? null : 'failed'); }}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm transition-all ${activeStatus === 'failed' && isThisPEAActive ? 'bg-red-100 text-red-700 ring-1 ring-red-300 font-bold' : 'text-gray-700 font-bold hover:bg-gray-100'}`}>
                       <XCircle className="w-3.5 h-3.5 text-red-500" />{summary.failed}
                     </button>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
-                    <button
-                      onClick={() => onCardClick(summary.pea, activeStatus === 'pending' ? null : 'pending')}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm transition-all
-                        ${activeStatus === 'pending' && isThisPEAActive ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300 font-bold' : 'text-gray-700 font-bold'}`}
-                    >
+                    <button type="button" onClick={(e) => { e.stopPropagation(); onCardClick(summary.pea, activeStatus === 'pending' ? null : 'pending'); }}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm transition-all ${activeStatus === 'pending' && isThisPEAActive ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300 font-bold' : 'text-gray-700 font-bold hover:bg-gray-100'}`}>
                       <Clock className="w-3.5 h-3.5 text-amber-500" />{summary.pending}
                     </button>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
                       <div className="flex-1 max-w-[60px] bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className={`h-1.5 rounded-full ${summary.passRate >= 50 ? 'bg-emerald-500' : 'bg-red-500'}`}
-                          style={{ width: `${(summary.passed / Math.max(summary.total, 1)) * 100}%` }}
-                        />
+                        <div className={`h-1.5 rounded-full ${summary.passRate >= 50 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                          style={{ width: `${(summary.passed / Math.max(summary.total, 1)) * 100}%` }} />
                       </div>
-                      <span className={`text-sm font-bold whitespace-nowrap ${summary.passRate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {summary.passRate}%
-                      </span>
+                      <span className={`text-sm font-bold whitespace-nowrap ${summary.passRate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>{summary.passRate}%</span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -238,9 +321,7 @@ function PEASummaryTableMode({ summaries, rankMap, activePEA, activeStatus, onCa
                     </span>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
-                    <span className={`inline-flex items-center justify-center min-w-[2.25rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>
-                      {rank}
-                    </span>
+                    <span className={`inline-flex items-center justify-center min-w-[2.25rem] px-2 py-0.5 rounded-full text-sm font-bold ${rankBadge(rank)}`}>{rank}</span>
                   </td>
                 </tr>
               );
