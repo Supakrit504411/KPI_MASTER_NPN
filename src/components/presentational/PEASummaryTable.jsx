@@ -24,11 +24,28 @@ function getPEAColor(peaName) {
   return color;
 }
 
-function computeRankMap(summaries) {
+// ลำดับความสำคัญของกลุ่มเขต: จุดรวมงานมาก่อน แล้วค่อย รวม → S → XS
+// ใช้สำหรับจัดเรียง default เพื่อให้หน่วย "จุดรวมงาน" เช่น กฟส.นพ. ขึ้นมาก่อน
+const GROUP_PRIORITY_ORDER = ['จุดรวมงาน', 'รวม', 'S', 'XS'];
+function peaGroupPriority(districtRanking, pea) {
+  if (!districtRanking) return 99;
+  for (let i = 0; i < GROUP_PRIORITY_ORDER.length; i++) {
+    if (districtRanking[GROUP_PRIORITY_ORDER[i]]?.[pea]) return i;
+  }
+  return 99;
+}
+
+function computeRankMap(summaries, districtRanking) {
   // อันดับใช้คะแนนถ่วงน้ำหนัก (weightedPct) ตามเกณฑ์เขต
   // ถ้ายังไม่มี weightedPct ให้ fallback เป็นคะแนนรวมเดิม
+  // จัดลำดับกลุ่มเขตก่อน (จุดรวมงาน > รวม > S > XS) แล้วเรียงตามคะแนน
   const scoreOf = (s) => (s.weightedPct != null ? s.weightedPct : (s.totalScoreNet || 0));
-  const sorted = [...summaries].sort((a, b) => scoreOf(b) - scoreOf(a));
+  const sorted = [...summaries].sort((a, b) => {
+    const pa = peaGroupPriority(districtRanking, a.pea);
+    const pb = peaGroupPriority(districtRanking, b.pea);
+    if (pa !== pb) return pa - pb;
+    return scoreOf(b) - scoreOf(a);
+  });
   const map = {};
   let lastScore = null;
   let lastRank = 0;
@@ -222,7 +239,7 @@ function StatBox({ icon, label, value, color, bg }) {
 
 export default function PEASummaryTable({ summaries, activePEA, activeStatus, onCardClick, districtRanking }) {
   const [detailPea, setDetailPea] = useState(null);
-  const rankMap = useMemo(() => computeRankMap(summaries), [summaries]);
+  const rankMap = useMemo(() => computeRankMap(summaries, districtRanking), [summaries, districtRanking]);
   const { sorted, sort, toggle } = useSortedSummaries(summaries, rankMap, districtRanking);
   const detail = detailPea ? summaries.find((s) => s.pea === detailPea) : null;
 
