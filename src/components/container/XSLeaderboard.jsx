@@ -118,8 +118,8 @@ export default function XSLeaderboard({ onExit }) {
     if (!el) return;
     try {
       const { toPng } = await import('html-to-image');
-      // ปลดล็อก max-height เฉพาะตัว scroll ภายในตาราง เพื่อให้แถวทั้งหมดโผล่
-      const inner = el.querySelectorAll('[class*="max-h-"]');
+      // ปลดล็อกกล่องที่ scroll ได้ เพื่อให้ทุกแถว/ทุกคอลัมน์โผล่ครบในภาพ
+      const inner = el.querySelectorAll('[class*="max-h-"], [class*="overflow-"]');
       const saved = [];
       inner.forEach((sc) => {
         saved.push({ el: sc, maxHeight: sc.style.maxHeight, overflow: sc.style.overflow });
@@ -127,10 +127,18 @@ export default function XSLeaderboard({ onExit }) {
         sc.style.overflow = 'visible';
       });
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const width = Math.ceil(el.scrollWidth);
+      const height = Math.ceil(el.scrollHeight);
       const dataUrl = await toPng(el, {
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         cacheBust: true,
+        width,
+        height,
+        // html-to-image คัดลอก computed style ของ root มาด้วย ทำให้ margin จาก mx-auto
+        // ดันเนื้อหาไปทางขวาและถูกตัดขอบ จึงต้องล้าง margin/transform ในภาพ
+        style: { margin: '0', maxWidth: 'none', width: `${width}px`, transform: 'none' },
+        filter: (node) => !(node.dataset && 'html2canvasIgnore' in node.dataset),
       });
       saved.forEach(({ el: s, maxHeight, overflow }) => {
         s.style.maxHeight = maxHeight;
