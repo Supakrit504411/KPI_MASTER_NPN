@@ -92,7 +92,7 @@ export default function PeaThailandReport({ onExit }) {
     return <div className="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center"><LoadingSpinner message="กำลังโหลดข้อมูล PEA Thailand..." /></div>;
   }
 
-  const selCls = 'border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400';
+  const selCls = 'border border-white/30 rounded-lg px-3 py-1.5 text-sm bg-white/15 text-white focus:outline-none focus:ring-2 focus:ring-amber-400 [&>option]:text-slate-800 [&>option]:bg-white';
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto">
