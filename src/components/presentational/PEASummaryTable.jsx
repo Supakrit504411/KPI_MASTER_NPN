@@ -156,7 +156,6 @@ function DetailModal({ summary, rank, districtInfo, onClose, onFilter }) {
   }, [onClose]);
   if (!summary) return null;
   const colors = getPEAColor(summary.pea);
-  const pct = summary.totalScoreFull > 0 ? (summary.totalScoreNet / summary.totalScoreFull) * 100 : 0;
   // ใช้อันดับจากชีต "จัดอันดับ" ให้ตรงกับคอลัมน์ในตาราง ถ้าไม่มีค่อย fallback เป็นอันดับที่คำนวณในแอป
   const shownRank = districtInfo?.rank ?? rank;
   const shownTotal = districtInfo?.total ?? summary._total;
@@ -171,21 +170,8 @@ function DetailModal({ summary, rank, districtInfo, onClose, onFilter }) {
             {districtInfo && ` · ${districtInfo.group}`}
           </div>
           <div className="text-3xl font-bold mt-1">{summary.pea}</div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-5xl font-bold tabular-nums">{summary.totalScoreNet}</span>
-            <span className="text-xl text-white/80">/ {summary.totalScoreFull} คะแนน</span>
-          </div>
         </div>
         <div className="p-6 space-y-5">
-          <div>
-            <div className="flex items-center justify-between text-sm text-slate-600 mb-1.5">
-              <span>คิดเป็นคะแนน</span>
-              <span className="font-bold text-slate-800">{pct.toFixed(1)}%</span>
-            </div>
-            <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
-              <div className={`h-full ${pct >= 50 ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-            </div>
-          </div>
           <div className="grid grid-cols-3 gap-3">
             <StatBox icon={<CheckCircle2 className="w-5 h-5" />} label="ผ่าน" value={summary.passed} color="text-emerald-600" bg="bg-emerald-50" />
             <StatBox icon={<XCircle className="w-5 h-5" />} label="ไม่ผ่าน" value={summary.failed} color="text-red-600" bg="bg-red-50" />
@@ -209,7 +195,6 @@ function DetailModal({ summary, rank, districtInfo, onClose, onFilter }) {
                   <tr className="text-slate-500">
                     <th className="text-left font-medium py-1">กลุ่ม</th>
                     <th className="text-right font-medium py-1">น้ำหนัก</th>
-                    <th className="text-right font-medium py-1">คะแนน</th>
                     <th className="text-right font-medium py-1">%</th>
                   </tr>
                 </thead>
@@ -218,7 +203,6 @@ function DetailModal({ summary, rank, districtInfo, onClose, onFilter }) {
                     <tr key={g.label} className="border-t border-indigo-100">
                       <td className="py-1">{g.label}</td>
                       <td className="py-1 text-right tabular-nums">{g.weight}%</td>
-                      <td className="py-1 text-right tabular-nums">{g.net.toFixed(2)}/{g.full.toFixed(2)}</td>
                       <td className="py-1 text-right tabular-nums font-semibold">{g.pct != null ? `${g.pct.toFixed(1)}%` : '–'}</td>
                     </tr>
                   ))}
