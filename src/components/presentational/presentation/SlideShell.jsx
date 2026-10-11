@@ -1,3 +1,13 @@
+// ปรับขนาดหัวเรื่องตามความยาว เพื่อไม่ให้ล้นกรอบสไลด์
+function titleSize(title) {
+  const len = String(title ?? '').length;
+  if (len <= 32) return 40;
+  if (len <= 48) return 34;
+  if (len <= 66) return 28;
+  if (len <= 88) return 24;
+  return 21;
+}
+
 // โครงสไลด์ 1600x900 ทุกหน้าใช้ร่วมกัน: แถบหัวเรื่อง + พื้นที่เนื้อหา + footer
 export default function SlideShell({ kicker, title, aside, footer, children, brand = 'PEA Dashboard · ผลการดำเนินงานตามตัวชี้วัด (KPIs)' }) {
   return (
@@ -6,7 +16,7 @@ export default function SlideShell({ kicker, title, aside, footer, children, bra
       <div className="px-16 pt-10 pb-6 flex items-start justify-between gap-10 shrink-0">
         <div className="min-w-0">
           {kicker && <div className="text-xl font-semibold text-blue-700 mb-2">{kicker}</div>}
-          <h2 className="text-[40px] leading-tight font-bold text-slate-800">{title}</h2>
+          <h2 className="leading-tight font-bold text-slate-800" style={{ fontSize: titleSize(title) }}>{title}</h2>
         </div>
         {aside && <div className="shrink-0">{aside}</div>}
       </div>

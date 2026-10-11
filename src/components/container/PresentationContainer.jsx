@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Maximize, Minimize, Settings2, X, LayoutGrid } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Maximize, Minimize, Settings2, X, LayoutGrid, FilePlus } from 'lucide-react';
 import { getUniquePEAs, getUniqueGroups, getPeaGroupMap, MONITOR_PEAS } from '../../utils/parseCSV';
 import { buildItemIndex, buildPEAOverview, filterItems, ITEM_FILTERS, toImageUrl } from '../../utils/presentation';
 import { getCoverImageUrl } from '../../services/googleSheet';
@@ -10,15 +10,26 @@ import MatrixSlide from '../presentational/presentation/MatrixSlide';
 import KpiSlide from '../presentational/presentation/KpiSlide';
 import SummarySlide from '../presentational/presentation/SummarySlide';
 import PresentationSetup from '../presentational/presentation/PresentationSetup';
+import InsertedSlide from '../presentational/presentation/InsertedSlide';
+import InsertPanel from '../presentational/presentation/InsertPanel';
 
 const SLIDE_W = 1600;
 const SLIDE_H = 900;
 const STORAGE_KEY = 'pea-presentation-v1';
 const COVER_KEY = 'pea-presentation-cover';
+const INSERTS_KEY = 'pea-presentation-inserts';
 
 function loadSaved() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function loadInserts() {
+  try {
+    return JSON.parse(localStorage.getItem(INSERTS_KEY)) || {};
   } catch {
     return {};
   }
@@ -60,6 +71,9 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
   const [current, setCurrent] = useState(0);
   const [drill, setDrill] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
+  // สไลด์ที่แทรกเอง เก็บแยกตาม "ข้อ": { [itemNo]: [{id,type,src,title}] }
+  const [inserts, setInserts] = useState(loadInserts);
+  const [insertPanelItem, setInsertPanelItem] = useState(null);
   // เปิดแผงตั้งค่าแล้วเลื่อนไปที่ส่วน "เลือกข้อ" ทันที (เมื่อกดปุ่มเลือกข้อที่ footer)
   const [setupItemsFocus, setSetupItemsFocus] = useState(false);
   const openSetup = useCallback((focusItems = false) => { setSetupItemsFocus(focusItems); setShowSetup(true); }, []);
@@ -87,6 +101,23 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
   }, [focusPeas, deckItems, itemFilter]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(INSERTS_KEY, JSON.stringify(inserts));
+    } catch {
+      // พื้นที่เก็บเต็ม (รูปขนาดใหญ่) — ยังนำเสนอได้จนกว่าจะปิดหน้า
+    }
+  }, [inserts]);
+
+  const setItemInserts = useCallback((itemNo, list) => {
+    setInserts((prev) => {
+      const next = { ...prev };
+      if (!list || list.length === 0) delete next[itemNo];
+      else next[itemNo] = list;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
     getCoverImageUrl().then(setSheetCover);
   }, []);
 
@@ -106,9 +137,12 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
     { key: 'cover', type: 'cover' },
     { key: 'overview', type: 'overview' },
     { key: 'matrix', type: 'matrix' },
-    ...deckItems.map((item) => ({ key: `kpi-${item}`, type: 'kpi', item })),
+    ...deckItems.flatMap((item) => [
+      { key: `kpi-${item}`, type: 'kpi', item },
+      ...(inserts[item] || []).map((ins) => ({ key: `ins-${item}-${ins.id}`, type: 'insert', item, insert: ins })),
+    ]),
     { key: 'summary', type: 'summary' },
-  ], [deckItems]);
+  ], [deckItems, inserts]);
 
   const matrixIndex = 2;
   const safeCurrent = Math.min(current, slides.length - 1);
@@ -129,12 +163,20 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
 
   useEffect(() => {
     if (!pendingJump) return;
-    const i = slides.findIndex((s) => s.item === pendingJump);
+    const i = slides.findIndex((s) => s.type === 'kpi' && s.item === pendingJump);
     if (i >= 0) {
       setCurrent(i);
       setPendingJump(null);
     }
   }, [pendingJump, slides]);
+
+  // ข้อที่สไลด์ปัจจุบันเกี่ยวข้อง (ใช้เปิดแผงแทรกหน้า) — มีเฉพาะสไลด์ kpi และสไลด์แทรก
+  const currentItem = (slide?.type === 'kpi' || slide?.type === 'insert') ? slide.item : null;
+
+  const goToInsert = useCallback((itemNo, insertId) => {
+    const i = slides.findIndex((s) => s.type === 'insert' && s.item === itemNo && s.insert.id === insertId);
+    if (i >= 0) { setCurrent(i); setInsertPanelItem(null); }
+  }, [slides]);
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen?.();
@@ -156,6 +198,7 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
         if (e.key === 'Escape') setShowSetup(false);
         return;
       }
+      if (insertPanelItem) return; // แผงแทรกหน้าจัดการคีย์เอง (Esc/วางรูป)
       if (e.target instanceof HTMLInputElement) return;
       switch (e.key) {
         case 'ArrowRight': case 'PageDown': case ' ': e.preventDefault(); go(safeCurrent + 1); break;
@@ -166,13 +209,14 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
         case 'd': case 'D': setDrill((v) => !v); break;
         case 'm': case 'M': go(matrixIndex); break;
         case 's': case 'S': openSetup(false); break;
+        case 'i': case 'I': if (currentItem != null) setInsertPanelItem(currentItem); break;
         case 'Escape': if (!document.fullscreenElement) onExit(); break;
         default:
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, safeCurrent, slides.length, showSetup, toggleFullscreen, onExit, openSetup]);
+  }, [go, safeCurrent, slides.length, showSetup, toggleFullscreen, onExit, openSetup, insertPanelItem, currentItem]);
 
   // แถบควบคุมจะซ่อนเองเมื่อไม่ขยับเมาส์ 2.5 วินาที
   const pokeControls = useCallback(() => {
@@ -199,6 +243,8 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
         return <MatrixSlide index={index} focusPeas={focusPeas} deckItems={deckItems} onJump={jumpToItem} footer={footer} />;
       case 'kpi':
         return <KpiSlide entry={index.get(slide.item)} focusPeas={focusPeas} peaGroup={peaGroup} drill={drill} onToggleDrill={() => setDrill((v) => !v)} footer={footer} />;
+      case 'insert':
+        return <InsertedSlide insert={slide.insert} itemNo={slide.item} footer={footer} />;
       case 'summary':
         return <SummarySlide index={index} focusPeas={focusPeas} onJump={jumpToItem} footer={footer} />;
       default:
@@ -251,6 +297,16 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
           เลือกข้อ{itemFilter === 'custom' ? ` (${deckItems.length})` : ''}
         </button>
         <div className="w-px h-5 bg-white/20 mx-1" />
+        <button
+          type="button"
+          title={currentItem != null ? `แทรกหน้าประกอบข้อ ${currentItem} (I)` : 'ไปที่สไลด์ตัวชี้วัดก่อนจึงแทรกหน้าได้'}
+          onClick={() => currentItem != null && setInsertPanelItem(currentItem)}
+          disabled={currentItem == null}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${currentItem == null ? 'opacity-40 cursor-not-allowed' : (inserts[currentItem]?.length ? 'bg-amber-400 text-blue-900' : 'hover:bg-white/15')}`}
+        >
+          <FilePlus className="w-4 h-4" /> แทรกหน้า{currentItem != null && inserts[currentItem]?.length ? ` (${inserts[currentItem].length})` : ''}
+        </button>
+        <div className="w-px h-5 bg-white/20 mx-1" />
         <CtrlBtn title="แผนที่ตัวชี้วัด (M)" onClick={() => go(matrixIndex)}><LayoutGrid className="w-5 h-5" /></CtrlBtn>
         <CtrlBtn title="ตั้งค่า (S)" onClick={() => openSetup(false)}><Settings2 className="w-5 h-5" /></CtrlBtn>
         <CtrlBtn title="เต็มจอ (F)" onClick={toggleFullscreen}>{isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}</CtrlBtn>
@@ -274,6 +330,17 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
           sheetCover={sheetCover}
           onChangeLocalCover={changeLocalCover}
           onClose={() => setShowSetup(false)}
+        />
+      )}
+
+      {insertPanelItem != null && (
+        <InsertPanel
+          itemNo={insertPanelItem}
+          itemTitle={index.get(insertPanelItem)?.description}
+          inserts={inserts[insertPanelItem] || []}
+          onChange={(list) => setItemInserts(insertPanelItem, list)}
+          onGoTo={(insertId) => goToInsert(insertPanelItem, insertId)}
+          onClose={() => setInsertPanelItem(null)}
         />
       )}
     </div>
