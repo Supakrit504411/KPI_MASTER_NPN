@@ -71,6 +71,7 @@ const SORT_KEYS = {
   rankRuam: (s, _r, dr) => (districtRankOf(dr, 'รวม', s.pea)?.rank ?? 999),
   rankJuan: (s, _r, dr) => (districtRankOf(dr, 'จุดรวมงาน', s.pea)?.rank ?? 999),
   rankS: (s, _r, dr) => (districtRankOf(dr, 'S', s.pea)?.rank ?? 999),
+  rankXS: (s, _r, dr) => (districtRankOf(dr, 'XS', s.pea)?.rank ?? 999),
 };
 
 function useSortedSummaries(summaries, rankMap, districtRanking) {
@@ -250,6 +251,7 @@ function PEASummaryGrid({ summaries, rankMap, districtRanking, sort, onToggle, a
   const totalRuam = districtRanking?.['รวม'] ? Object.keys(districtRanking['รวม']).length : 0;
   const totalJuan = districtRanking?.['จุดรวมงาน'] ? Object.keys(districtRanking['จุดรวมงาน']).length : 0;
   const totalS = districtRanking?.['S'] ? Object.keys(districtRanking['S']).length : 0;
+  const totalXS = districtRanking?.['XS'] ? Object.keys(districtRanking['XS']).length : 0;
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
@@ -264,6 +266,7 @@ function PEASummaryGrid({ summaries, rankMap, districtRanking, sort, onToggle, a
               <SortHeader label="อันดับ (รวม)" sortKey="rankRuam" sort={sort} onToggle={onToggle} />
               <SortHeader label="อันดับ (จุดรวมงาน)" sortKey="rankJuan" sort={sort} onToggle={onToggle} />
               <SortHeader label="อันดับ (S)" sortKey="rankS" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ (XS)" sortKey="rankXS" sort={sort} onToggle={onToggle} />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -307,6 +310,9 @@ function PEASummaryGrid({ summaries, rankMap, districtRanking, sort, onToggle, a
                   <td className="px-3 py-2.5 text-center whitespace-nowrap">
                     <DistrictRankCell info={districtRankOf(districtRanking, 'S', summary.pea)} totalInGroup={totalS} />
                   </td>
+                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                    <DistrictRankCell info={districtRankOf(districtRanking, 'XS', summary.pea)} totalInGroup={totalXS} />
+                  </td>
                 </tr>
               );
             })}
@@ -333,6 +339,7 @@ function PEASummaryTableMode({ summaries, rankMap, districtRanking, sort, onTogg
   const totalRuam = districtRanking?.['รวม'] ? Object.keys(districtRanking['รวม']).length : 0;
   const totalJuan = districtRanking?.['จุดรวมงาน'] ? Object.keys(districtRanking['จุดรวมงาน']).length : 0;
   const totalS = districtRanking?.['S'] ? Object.keys(districtRanking['S']).length : 0;
+  const totalXS = districtRanking?.['XS'] ? Object.keys(districtRanking['XS']).length : 0;
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
@@ -347,6 +354,7 @@ function PEASummaryTableMode({ summaries, rankMap, districtRanking, sort, onTogg
               <SortHeader label="อันดับ (รวม)" sortKey="rankRuam" sort={sort} onToggle={onToggle} />
               <SortHeader label="อันดับ (จุดรวมงาน)" sortKey="rankJuan" sort={sort} onToggle={onToggle} />
               <SortHeader label="อันดับ (S)" sortKey="rankS" sort={sort} onToggle={onToggle} />
+              <SortHeader label="อันดับ (XS)" sortKey="rankXS" sort={sort} onToggle={onToggle} />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -398,6 +406,9 @@ function PEASummaryTableMode({ summaries, rankMap, districtRanking, sort, onTogg
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap">
                     <DistrictRankCell info={districtRankOf(districtRanking, 'S', summary.pea)} totalInGroup={totalS} compact />
+                  </td>
+                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                    <DistrictRankCell info={districtRankOf(districtRanking, 'XS', summary.pea)} totalInGroup={totalXS} compact />
                   </td>
                 </tr>
               );

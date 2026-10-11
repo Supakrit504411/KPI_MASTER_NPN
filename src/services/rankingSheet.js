@@ -7,12 +7,12 @@ const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || '1P90pDKqos8bchlJRpr7Gi
 const RANK_SHEET = 'จัดอันดับ';
 const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(RANK_SHEET)}`;
 
-// ดึงชื่อหน่วยงานสั้นๆ จาก "D15z -รวม กฟส.อด.2-(L)" หรือ "D06201 -กฟส.ธพ.-(S)"
+// ดึงชื่อหน่วยงานสั้นๆ จาก "D15z -รวม กฟส.อด.2-(L)" / "D06201 -กฟส.ธพ.-(S)"
+// รองรับทั้งแบบมี/ไม่มีช่องว่างหลังจุด เช่น "กฟส. ซำสูง"
 function extractPeaName(raw) {
   const s = String(raw ?? '').trim();
-  // จับ "กฟ[สจฟ].xxx" โดยหยุดก่อนขีด/วงเล็บ/ช่องว่าง
-  const m = s.match(/(กฟ[สจฟ]\.[^-()\s]+)/);
-  return m ? m[1] : '';
+  const m = s.match(/กฟ[สจฟ]\.\s*[^\s\-()]+/);
+  return m ? m[0].replace(/\s+/g, '') : '';
 }
 
 function toNumber(v) {
