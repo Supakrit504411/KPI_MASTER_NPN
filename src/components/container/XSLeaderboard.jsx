@@ -117,35 +117,23 @@ export default function XSLeaderboard({ onExit }) {
     if (!el) return;
     try {
       const { toPng } = await import('html-to-image');
-      const rootSaved = { width: el.style.width, maxWidth: el.style.maxWidth, overflow: el.style.overflow };
-      el.style.width = 'max-content';
-      el.style.maxWidth = 'none';
-      el.style.overflow = 'visible';
-      const inner = el.querySelectorAll('[class*="max-h-"], [class*="overflow-x"], [class*="overflow-auto"]');
-      const innerSaved = [];
+      // ปลดล็อก max-height เฉพาะตัว scroll ภายในตาราง เพื่อให้แถวทั้งหมดโผล่
+      const inner = el.querySelectorAll('[class*="max-h-"]');
+      const saved = [];
       inner.forEach((sc) => {
-        innerSaved.push({ el: sc, maxHeight: sc.style.maxHeight, overflow: sc.style.overflow, overflowX: sc.style.overflowX, overflowY: sc.style.overflowY, width: sc.style.width, minWidth: sc.style.minWidth });
+        saved.push({ el: sc, maxHeight: sc.style.maxHeight, overflow: sc.style.overflow });
         sc.style.maxHeight = 'none';
         sc.style.overflow = 'visible';
-        sc.style.overflowX = 'visible';
-        sc.style.overflowY = 'visible';
-        sc.style.width = 'max-content';
-        sc.style.minWidth = '100%';
       });
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const fullW = el.scrollWidth, fullH = el.scrollHeight;
       const dataUrl = await toPng(el, {
-        pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true,
-        width: fullW, height: fullH,
-        style: { width: fullW + 'px', height: fullH + 'px', overflow: 'visible' },
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
       });
-      el.style.width = rootSaved.width;
-      el.style.maxWidth = rootSaved.maxWidth;
-      el.style.overflow = rootSaved.overflow;
-      innerSaved.forEach(({ el: s, maxHeight, overflow, overflowX, overflowY, width, minWidth }) => {
-        s.style.maxHeight = maxHeight; s.style.overflow = overflow;
-        s.style.overflowX = overflowX; s.style.overflowY = overflowY;
-        s.style.width = width; s.style.minWidth = minWidth;
+      saved.forEach(({ el: s, maxHeight, overflow }) => {
+        s.style.maxHeight = maxHeight;
+        s.style.overflow = overflow;
       });
       const link = document.createElement('a');
       link.download = `xs-leaderboard-${monitorOnly ? 'monitor-' : ''}${new Date().toISOString().slice(0, 10)}.png`;
@@ -193,7 +181,7 @@ export default function XSLeaderboard({ onExit }) {
         </div>
       </header>
 
-      <main ref={captureRef} className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+      <main ref={captureRef} className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
         {monitorOnly && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800 flex items-center gap-2">
             <Monitor className="w-4 h-4" />
@@ -228,13 +216,13 @@ export default function XSLeaderboard({ onExit }) {
             <div className="p-10 text-center text-gray-500">ไม่พบข้อมูล</div>
           ) : (
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="w-full border-collapse table-fixed">
+              <table className="w-auto mx-auto border-collapse">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-gray-200">
-                    <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={toggleSort} align="center" className="w-[72px]" />
+                    <SortHeader label="อันดับ" sortKey="rank" sort={sort} onToggle={toggleSort} align="center" />
                     <SortHeader label="หน่วยงาน" sortKey="pea" sort={sort} onToggle={toggleSort} align="left" />
-                    <SortHeader label="รหัส" sortKey="code" sort={sort} onToggle={toggleSort} align="left" className="hidden sm:table-cell w-[88px]" />
-                    <SortHeader label="คะแนน" sortKey="score" sort={sort} onToggle={toggleSort} align="right" className="w-[80px]" />
+                    <SortHeader label="รหัส" sortKey="code" sort={sort} onToggle={toggleSort} align="left" className="hidden sm:table-cell" />
+                    <SortHeader label="คะแนน" sortKey="score" sort={sort} onToggle={toggleSort} align="right" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -251,8 +239,8 @@ export default function XSLeaderboard({ onExit }) {
                             {row.rank}
                           </span>
                         </td>
-                        <td className="px-2 py-2">
-                          <div className="font-semibold text-slate-800 text-sm group-hover:text-blue-700 group-hover:underline truncate">
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <div className="font-semibold text-slate-800 text-sm group-hover:text-blue-700 group-hover:underline">
                             {row.pea}
                             {highlighted && !monitorOnly && (
                               <span className="ml-1.5 inline-flex items-center gap-0.5 px-1 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded align-middle">
@@ -261,10 +249,10 @@ export default function XSLeaderboard({ onExit }) {
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-2 hidden sm:table-cell">
+                        <td className="px-3 py-2 hidden sm:table-cell whitespace-nowrap">
                           <span className="text-xs text-gray-500 tabular-nums">{row.code}</span>
                         </td>
-                        <td className={`px-2 py-2 text-right text-sm font-bold tabular-nums ${scoreColor(row.score)}`}>
+                        <td className={`px-3 py-2 text-right text-sm font-bold tabular-nums whitespace-nowrap ${scoreColor(row.score)}`}>
                           {row.score != null ? row.score.toFixed(3) : '–'}
                         </td>
                       </tr>
