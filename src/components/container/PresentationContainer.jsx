@@ -12,24 +12,16 @@ import SummarySlide from '../presentational/presentation/SummarySlide';
 import PresentationSetup from '../presentational/presentation/PresentationSetup';
 import InsertedSlide from '../presentational/presentation/InsertedSlide';
 import InsertPanel from '../presentational/presentation/InsertPanel';
+import { loadInserts as idbLoad, saveInserts as idbSave } from '../../utils/insertStore';
 
 const SLIDE_W = 1600;
 const SLIDE_H = 900;
 const STORAGE_KEY = 'pea-presentation-v1';
 const COVER_KEY = 'pea-presentation-cover';
-const INSERTS_KEY = 'pea-presentation-inserts';
 
 function loadSaved() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-  } catch {
-    return {};
-  }
-}
-
-function loadInserts() {
-  try {
-    return JSON.parse(localStorage.getItem(INSERTS_KEY)) || {};
   } catch {
     return {};
   }
@@ -72,8 +64,13 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
   const [drill, setDrill] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   // สไลด์ที่แทรกเอง เก็บแยกตาม "ข้อ": { [itemNo]: [{id,type,src,title}] }
-  const [inserts, setInserts] = useState(loadInserts);
+  const [inserts, setInserts] = useState({});
+  const [insertsLoaded, setInsertsLoaded] = useState(false);
   const [insertPanelItem, setInsertPanelItem] = useState(null);
+
+  useEffect(() => {
+    idbLoad().then((data) => { setInserts(data); setInsertsLoaded(true); });
+  }, []);
   // เปิดแผงตั้งค่าแล้วเลื่อนไปที่ส่วน "เลือกข้อ" ทันที (เมื่อกดปุ่มเลือกข้อที่ footer)
   const [setupItemsFocus, setSetupItemsFocus] = useState(false);
   const openSetup = useCallback((focusItems = false) => { setSetupItemsFocus(focusItems); setShowSetup(true); }, []);
@@ -101,12 +98,8 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
   }, [focusPeas, deckItems, itemFilter]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(INSERTS_KEY, JSON.stringify(inserts));
-    } catch {
-      // พื้นที่เก็บเต็ม (รูปขนาดใหญ่) — ยังนำเสนอได้จนกว่าจะปิดหน้า
-    }
-  }, [inserts]);
+    if (insertsLoaded) idbSave(inserts);
+  }, [inserts, insertsLoaded]);
 
   const setItemInserts = useCallback((itemNo, list) => {
     setInserts((prev) => {
