@@ -1,5 +1,5 @@
 import SlideShell from './SlideShell';
-import { fmt, LEVEL_STYLE } from '../../../utils/presentation';
+import { fmt, LEVEL_STYLE, passPct } from '../../../utils/presentation';
 
 export default function OverviewSlide({ overview, footer }) {
   const { focus, groups } = overview;
@@ -22,7 +22,10 @@ export default function OverviewSlide({ overview, footer }) {
     >
       <div className="grid gap-6 h-full" style={{ gridTemplateColumns: `repeat(${Math.max(focus.length, 1)}, minmax(0, 1fr))` }}>
         {focus.map((s) => {
-          const above = s.percentage >= s.groupAvg;
+          const pct = passPct(s);
+          const above = pct >= s.groupAvg;
+          // อันดับอยู่ครึ่งบนของกลุ่มถือว่าอยู่ในเกณฑ์ดี
+          const goodRank = s.groupTotal > 0 && s.rank <= Math.ceil(s.groupTotal / 2);
           const segs = [
             ['passed', s.passed],
             ['failed', s.failed],
@@ -31,16 +34,18 @@ export default function OverviewSlide({ overview, footer }) {
           return (
             <div key={s.pea} className="rounded-3xl border border-slate-200 bg-slate-50 p-8 flex flex-col">
               <div className="text-3xl font-bold text-slate-800">{s.pea}</div>
-              <div className="text-lg text-slate-500 mt-1">อันดับ {s.rank} จาก {s.groupTotal} · กลุ่ม {s.group}</div>
+              <div className="text-lg text-slate-500 mt-1">กลุ่ม {s.group}</div>
 
               <div className="mt-8 flex items-baseline gap-2">
-                <span className={`text-[96px] leading-none font-bold ${above ? 'text-blue-700' : 'text-red-600'}`}>
-                  {fmt(s.percentage, 1)}
+                <span className="text-5xl font-bold text-slate-400">#</span>
+                <span className={`text-[96px] leading-none font-bold ${goodRank ? 'text-blue-700' : 'text-red-600'}`}>
+                  {s.rank ?? '–'}
                 </span>
-                <span className="text-4xl text-slate-400">%</span>
+                <span className="text-3xl text-slate-400">จาก {s.groupTotal}</span>
               </div>
-              <div className="text-xl text-slate-500 mt-2">
-                {fmt(s.totalScoreNet)} / {fmt(s.totalScoreFull)} คะแนน
+              <div className="text-xl text-slate-500 mt-3">
+                ผ่านเกณฑ์ {s.passed} จาก {s.total} ข้อ ·{' '}
+                <span className={`font-bold ${above ? 'text-blue-700' : 'text-red-600'}`}>{fmt(pct, 1)}%</span>
               </div>
 
               <div className="mt-auto">

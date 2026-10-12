@@ -80,6 +80,11 @@ export function districtRankOf(districtRanking, pea) {
   return null;
 }
 
+// % ความคืบหน้า = ข้อที่ผ่านเกณฑ์ / ข้อทั้งหมด (นับข้อที่รอผลเป็นยังไม่ผ่าน)
+export function passPct(s) {
+  return s.total > 0 ? (s.passed / s.total) * 100 : 0;
+}
+
 // สรุปทั้งหน่วยงาน + อันดับ % คะแนนสุทธิ "เทียบเฉพาะในกลุ่ม (Group) เดียวกัน"
 export function buildPEAOverview(data, focusPeas, districtRanking) {
   // กลุ่มหลักของแต่ละหน่วยงาน (กันข้อมูลบางแถวที่พิมพ์กลุ่มผิด)
@@ -93,8 +98,8 @@ export function buildPEAOverview(data, focusPeas, districtRanking) {
   const groupTotal = {};
   const groupAvgOf = {};
   for (const list of Object.values(byGroup)) {
-    list.sort((a, b) => b.percentage - a.percentage);
-    const gAvg = list.length ? list.reduce((t, x) => t + x.percentage, 0) / list.length : 0;
+    list.sort((a, b) => passPct(b) - passPct(a));
+    const gAvg = list.length ? list.reduce((t, x) => t + passPct(x), 0) / list.length : 0;
     list.forEach((s, i) => {
       rankOf[s.pea] = i + 1;
       groupTotal[s.pea] = list.length;
@@ -119,7 +124,7 @@ export function buildPEAOverview(data, focusPeas, districtRanking) {
   const groups = [...new Set(focus.map((f) => f.group))].map((g) => ({
     group: g,
     total: byGroup[g]?.length || 0,
-    avg: byGroup[g] && byGroup[g].length ? byGroup[g].reduce((t, x) => t + x.percentage, 0) / byGroup[g].length : 0,
+    avg: byGroup[g] && byGroup[g].length ? byGroup[g].reduce((t, x) => t + passPct(x), 0) / byGroup[g].length : 0,
   }));
 
   return { focus, groups, totalPeas: all.length };
