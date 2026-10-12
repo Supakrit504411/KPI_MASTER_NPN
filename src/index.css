@@ -24,3 +24,43 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* ส่งออกสไลด์นำเสนอเป็น PDF ผ่านหน้าต่างพิมพ์ของเบราว์เซอร์
+   ขณะเตรียมไฟล์ให้วางไว้นอกจอ (ยังวัดขนาด/โหลดรูปได้ตามปกติ) */
+#pdf-deck {
+  position: fixed;
+  left: -100000px;
+  top: 0;
+}
+
+@media print {
+  @page {
+    size: 1600px 900px;
+    margin: 0;
+  }
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body > *:not(#pdf-deck) {
+    display: none !important;
+  }
+  #pdf-deck {
+    position: static;
+    left: auto;
+  }
+  #pdf-deck .pdf-page {
+    width: 1600px;
+    height: 900px;
+    overflow: hidden;
+    break-after: page;
+    page-break-after: always;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #pdf-deck .pdf-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Maximize, Minimize, Settings2, X, LayoutGrid, FilePlus } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, Maximize, Minimize, Settings2, X, LayoutGrid, FilePlus, FileDown, Loader2 } from 'lucide-react';
 import { getUniquePEAs, getUniqueGroups, getPeaGroupMap, MONITOR_PEAS } from '../../utils/parseCSV';
 import { buildItemIndex, buildPEAOverview, filterItems, ITEM_FILTERS, toImageUrl } from '../../utils/presentation';
 import { getCoverImageUrl } from '../../services/googleSheet';
@@ -63,6 +64,7 @@ export default function PresentationContainer({ rawData, dataStatus, districtRan
   const [current, setCurrent] = useState(0);
   const [pageInput, setPageInput] = useState(''); // ช่องพิมพ์เลขหน้าในแถบควบคุม
   const [drill, setDrill] = useState(false);
+  const [exporting, setExporting] = useState(false); // เรนเดอร์ทุกสไลด์ไว้สำหรับพิมพ์เป็น PDF
   const [showSetup, setShowSetup] = useState(false);
   // สไลด์ที่แทรกเอง เก็บแยกตาม "ข้อ": { [itemNo]: [{id,type,src,title}] }
   const [inserts, setInserts] = useState({});
@@ -225,7 +227,29 @@ export default function PresentationContainer({ rawData, dataStatus, districtRan
 
   const footer = `${safeCurrent + 1} / ${slides.length}`;
 
-  const renderSlide = () => {
+  // ส่งออก PDF: เรนเดอร์ทุกสไลด์ลงหน้ากระดาษ 1600x900 แล้วเปิดหน้าต่างพิมพ์
+  // ผู้ใช้เลือก "บันทึกเป็น PDF" — ข้อความยังเป็นตัวอักษรจริง คมชัดและค้นหาได้
+  const deckRef = useRef(null);
+  useEffect(() => {
+    if (!exporting) return undefined;
+    let cancelled = false;
+    const done = () => setExporting(false);
+    window.addEventListener('afterprint', done);
+    (async () => {
+      // รอฟอนต์และรูปทุกภาพโหลดเสร็จก่อน ไม่งั้นหน้าที่มีรูปจะออกมาว่าง
+      await document.fonts?.ready;
+      const imgs = [...(deckRef.current?.querySelectorAll('img') || [])];
+      await Promise.all(imgs.map((img) => (img.complete ? null : img.decode().catch(() => null))));
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      if (!cancelled) window.print();
+    })();
+    return () => {
+      cancelled = true;
+      window.removeEventListener('afterprint', done);
+    };
+  }, [exporting]);
+
+  const renderSlide = (slide = slides[safeCurrent], footer = `${safeCurrent + 1} / ${slides.length}`) => {
     switch (slide.type) {
       case 'cover': {
         const builtIn = <CoverSlide dataStatus={dataStatus} focusPeas={focusPeas} itemCount={deckItems.length} />;
@@ -327,10 +351,22 @@ export default function PresentationContainer({ rawData, dataStatus, districtRan
         </button>
         <div className="w-px h-5 bg-white/20 mx-1" />
         <CtrlBtn title="แผนที่ตัวชี้วัด (M)" onClick={() => go(matrixIndex)}><LayoutGrid className="w-5 h-5" /></CtrlBtn>
+        <CtrlBtn title="ส่งออกทุกสไลด์เป็น PDF (สำรองไว้ใช้ตอนไม่มีอินเทอร์เน็ต)" onClick={() => !exporting && setExporting(true)}>
+          {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileDown className="w-5 h-5" />}
+        </CtrlBtn>
         <CtrlBtn title="ตั้งค่า (S)" onClick={() => openSetup(false)}><Settings2 className="w-5 h-5" /></CtrlBtn>
         <CtrlBtn title="เต็มจอ (F)" onClick={toggleFullscreen}>{isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}</CtrlBtn>
         <CtrlBtn title="ออกจากโหมดนำเสนอ (Esc)" onClick={onExit}><X className="w-5 h-5" /></CtrlBtn>
       </div>
+
+      {exporting && createPortal(
+        <div id="pdf-deck" ref={deckRef} aria-hidden="true">
+          {slides.map((s, i) => (
+            <div key={s.key} className="pdf-page">{renderSlide(s, `${i + 1} / ${slides.length}`)}</div>
+          ))}
+        </div>,
+        document.body,
+      )}
 
       {showSetup && (
         <PresentationSetup
