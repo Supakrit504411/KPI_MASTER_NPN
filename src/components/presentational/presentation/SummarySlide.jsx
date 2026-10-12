@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import SlideShell from './SlideShell';
 import { fmt, levelOf, LEVEL_STYLE, districtRankOf } from '../../../utils/presentation';
 
@@ -8,6 +9,60 @@ function densityOf(maxRows) {
   if (maxRows <= 14) return { gap: 'space-y-1.5', pad: 'px-3 py-1.5', item: 'text-base', desc: 'text-sm', score: 'text-base' };
   if (maxRows <= 18) return { gap: 'space-y-1', pad: 'px-2.5 py-1', item: 'text-sm', desc: 'text-sm', score: 'text-sm' };
   return { gap: 'space-y-0.5', pad: 'px-2 py-0.5', item: 'text-xs', desc: 'text-xs', score: 'text-xs' };
+}
+
+const CREDIT_KEY = 'pea-presentation-credit';
+
+function loadCredit() {
+  try {
+    return localStorage.getItem(CREDIT_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+// เครดิตมุมขวาล่าง แก้ไขได้เอง (คลิกเพื่อพิมพ์) และจำค่าไว้ในเครื่อง
+function EditableCredit() {
+  const [text, setText] = useState(loadCredit);
+  const [editing, setEditing] = useState(false);
+
+  const save = (v) => {
+    const next = v.trim();
+    setText(next);
+    setEditing(false);
+    try {
+      localStorage.setItem(CREDIT_KEY, next);
+    } catch {
+      /* โหมดส่วนตัวบางเบราว์เซอร์เขียนไม่ได้ ไม่ถือว่าเป็นข้อผิดพลาด */
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        defaultValue={text}
+        placeholder="พิมพ์เครดิต เช่น จัดทำโดย ..."
+        onBlur={(e) => save(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className="w-96 text-right text-base text-slate-700 bg-white border border-blue-300 rounded-lg px-3 py-1.5
+                   outline-none focus:ring-2 focus:ring-blue-300"
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title="คลิกเพื่อแก้ไขเครดิต"
+      className={`text-base rounded-lg px-3 py-1.5 hover:bg-slate-100 ${text ? 'text-slate-500' : 'text-slate-300'}`}
+    >
+      {text || 'คลิกเพื่อใส่เครดิต'}
+    </button>
+  );
 }
 
 export default function SummarySlide({ index, focusPeas, districtRanking, onJump, footer }) {
@@ -24,7 +79,8 @@ export default function SummarySlide({ index, focusPeas, districtRanking, onJump
 
   return (
     <SlideShell kicker="สรุป" title="ตัวชี้วัดที่ต้องเร่งดำเนินการ (คะแนน < 5)" footer={footer}>
-      <div className="grid gap-6 h-full" style={{ gridTemplateColumns: `repeat(${Math.max(focusPeas.length, 1)}, minmax(0, 1fr))` }}>
+      <div className="h-full flex flex-col min-h-0">
+      <div className="grid gap-6 flex-1 min-h-0" style={{ gridTemplateColumns: `repeat(${Math.max(focusPeas.length, 1)}, minmax(0, 1fr))` }}>
         {focusPeas.map((pea) => {
           const failed = failedBy.get(pea) || [];
           const dr = districtRankOf(districtRanking, pea);
@@ -87,6 +143,10 @@ export default function SummarySlide({ index, focusPeas, districtRanking, onJump
             </div>
           );
         })}
+      </div>
+      <div className="shrink-0 pt-2 flex justify-end">
+        <EditableCredit />
+      </div>
       </div>
     </SlideShell>
   );
