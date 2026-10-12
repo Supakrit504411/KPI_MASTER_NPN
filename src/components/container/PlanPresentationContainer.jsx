@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Maximize, Minimize, X, HelpCircle, Image as ImageIcon, Upload, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Maximize, Minimize, X, HelpCircle, Image as ImageIcon, Upload, Trash2, FileDown, Loader2 } from 'lucide-react';
 import { fetchPlanData } from '../../services/planSheet';
 import { buildPlanDeck, GRADE_ORDER, gradeStyle } from '../../utils/parsePlan';
 import LoadingSpinner from '../presentational/LoadingSpinner';
@@ -8,6 +8,7 @@ import PlanCoverSlide from '../presentational/presentation/plan/PlanCoverSlide';
 import PlanOverviewSlide from '../presentational/presentation/plan/PlanOverviewSlide';
 import PlanAreaSlide from '../presentational/presentation/plan/PlanAreaSlide';
 import ImageCoverSlide from '../presentational/presentation/ImageCoverSlide';
+import { usePdfExport, PdfDeck } from '../presentational/presentation/PdfDeck';
 
 const PLAN_COVER_KEY = 'pea-plan-presentation-cover';
 
@@ -38,6 +39,7 @@ export default function PlanPresentationContainer({ onExit }) {
   });
   const hideTimer = useRef(null);
   const scale = useFitScale();
+  const pdf = usePdfExport(); // ส่งออกทุกสไลด์เป็น PDF
 
   const changeLocalCover = useCallback((dataUrl) => {
     setLocalCover(dataUrl);
@@ -136,9 +138,7 @@ export default function PlanPresentationContainer({ onExit }) {
     );
   }
 
-  const footer = `${safeCurrent + 1} / ${slides.length}`;
-  const slide = slides[safeCurrent];
-  const renderSlide = () => {
+  const renderSlide = (slide = slides[safeCurrent], footer = `${safeCurrent + 1} / ${slides.length}`) => {
     switch (slide.type) {
       case 'cover': {
         const builtIn = <PlanCoverSlide deck={deck} />;
@@ -185,6 +185,9 @@ export default function PlanPresentationContainer({ onExit }) {
         >
           <ImageIcon className="w-4 h-4" /> หน้าปก
         </button>
+        <CtrlBtn title="ส่งออกทุกสไลด์เป็น PDF (สำรองไว้ใช้ตอนไม่มีอินเทอร์เน็ต)" onClick={pdf.start}>
+          {pdf.exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileDown className="w-5 h-5" />}
+        </CtrlBtn>
         <CtrlBtn title="เต็มจอ (F)" onClick={toggleFullscreen}>{isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}</CtrlBtn>
         <CtrlBtn title="ออก (Esc)" onClick={onExit}><X className="w-5 h-5" /></CtrlBtn>
       </div>
@@ -196,6 +199,8 @@ export default function PlanPresentationContainer({ onExit }) {
           onClose={() => setShowCoverPanel(false)}
         />
       )}
+
+      {pdf.exporting && <PdfDeck deckRef={pdf.deckRef} slides={slides} render={renderSlide} />}
 
       {showLegend && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center p-8" onClick={() => setShowLegend(false)}>
