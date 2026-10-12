@@ -181,14 +181,18 @@ function computeWeightedPct(rows) {
       const m = itemMajor(r.item);
       return m != null && m >= g.min && m <= g.max;
     });
-    const net = inGroup.reduce((s, r) => s + r.scoreNet, 0);
-    const full = inGroup.reduce((s, r) => s + r.scoreFull, 0);
+    // คิดเฉพาะข้อที่ประเมินผลแล้ว ให้ใช้ฐานเดียวกับ "อัตราผ่าน (ที่ประเมิน)"
+    // ถ้านับข้อที่ยังรอผลเข้าไปในตัวหารด้วย เปอร์เซ็นต์จะถูกฉุดต่ำผิดจริง
+    const evaluated = inGroup.filter((r) => r.status !== 'pending');
+    const pendingCount = inGroup.length - evaluated.length;
+    const net = evaluated.reduce((s, r) => s + r.scoreNet, 0);
+    const full = evaluated.reduce((s, r) => s + r.scoreFull, 0);
     const pct = full > 0 ? (net / full) * 100 : null;
     if (pct != null) {
       weightedSum += pct * g.weight;
       totalWeightUsed += g.weight;
     }
-    breakdown.push({ ...g, net, full, pct });
+    breakdown.push({ ...g, net, full, pct, pendingCount });
   }
   // ปรับฐานเป็น 100% ของน้ำหนักที่ประกาศแล้ว เพื่อให้อันดับเทียบกันได้
   const normalized = totalWeightUsed > 0 ? weightedSum / totalWeightUsed : 0;

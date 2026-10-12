@@ -185,7 +185,10 @@ function DetailModal({ summary, rank, districtInfo, onClose, onFilter }) {
           {summary.weightedBreakdown && (
             <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-semibold text-indigo-800">คะแนนถ่วงน้ำหนัก (ตามเกณฑ์เขต)</div>
+                <div className="text-sm font-semibold text-indigo-800">
+                  คะแนนถ่วงน้ำหนัก (ตามเกณฑ์เขต)
+                  <span className="block font-normal text-slate-500">คิดจากข้อที่ประเมินผลแล้วเท่านั้น</span>
+                </div>
                 <div className="text-2xl font-bold text-indigo-700 tabular-nums">
                   {summary.weightedPct != null ? `${summary.weightedPct.toFixed(2)}%` : '–'}
                 </div>
@@ -201,7 +204,12 @@ function DetailModal({ summary, rank, districtInfo, onClose, onFilter }) {
                 <tbody className="text-slate-700">
                   {summary.weightedBreakdown.map((g) => (
                     <tr key={g.label} className="border-t border-indigo-100">
-                      <td className="py-1">{g.label}</td>
+                      <td className="py-1">
+                        {g.label}
+                        {g.pendingCount > 0 && (
+                          <span className="text-amber-600"> · รอผล {g.pendingCount}</span>
+                        )}
+                      </td>
                       <td className="py-1 text-right tabular-nums">{g.weight}%</td>
                       <td className="py-1 text-right tabular-nums font-semibold">{g.pct != null ? `${g.pct.toFixed(1)}%` : '–'}</td>
                     </tr>
@@ -210,6 +218,7 @@ function DetailModal({ summary, rank, districtInfo, onClose, onFilter }) {
               </table>
               <div className="mt-2 text-xs text-slate-500">
                 * ฐานน้ำหนัก {summary.knownWeight}% ที่ประกาศแล้ว · อีก {100 - summary.knownWeight}% ยังไม่ประกาศ
+                <br />* กลุ่มที่ยังไม่มีผลประเมินเลยจะแสดง “–” และไม่ถูกนำมาคิดในคะแนนรวม
               </div>
             </div>
           )}
