@@ -61,6 +61,7 @@ export default function PresentationContainer({ rawData, dataStatus, districtRan
     setItemFilter('custom');
   }, []);
   const [current, setCurrent] = useState(0);
+  const [pageInput, setPageInput] = useState(''); // ช่องพิมพ์เลขหน้าในแถบควบคุม
   const [drill, setDrill] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   // สไลด์ที่แทรกเอง เก็บแยกตาม "ข้อ": { [itemNo]: [{id,type,src,title}] }
@@ -239,7 +240,7 @@ export default function PresentationContainer({ rawData, dataStatus, districtRan
       case 'insert':
         return <InsertedSlide insert={slide.insert} itemNo={slide.item} footer={footer} />;
       case 'summary':
-        return <SummarySlide index={index} focusPeas={focusPeas} onJump={jumpToItem} footer={footer} />;
+        return <SummarySlide index={index} focusPeas={focusPeas} districtRanking={districtRanking} onJump={jumpToItem} footer={footer} />;
       default:
         return null;
     }
@@ -267,7 +268,32 @@ export default function PresentationContainer({ rawData, dataStatus, districtRan
 
       <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-slate-800/90 text-white rounded-full px-2 py-1.5 shadow-xl transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <CtrlBtn title="ก่อนหน้า (←)" onClick={() => go(safeCurrent - 1)}><ChevronLeft className="w-5 h-5" /></CtrlBtn>
-        <span className="text-sm tabular-nums px-2 min-w-16 text-center">{safeCurrent + 1} / {slides.length}</span>
+        <form
+          className="flex items-center gap-1 px-2 text-sm tabular-nums"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = Number.parseInt(pageInput, 10);
+            if (Number.isFinite(n)) go(n - 1);
+            setPageInput('');
+            e.currentTarget.querySelector('input')?.blur();
+          }}
+        >
+          <input
+            type="text"
+            inputMode="numeric"
+            title="พิมพ์เลขหน้าแล้วกด Enter"
+            aria-label="ไปยังหน้า"
+            value={pageInput}
+            placeholder={String(safeCurrent + 1)}
+            onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ''))}
+            onFocus={(e) => e.target.select()}
+            onBlur={() => setPageInput('')}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setPageInput(''); e.currentTarget.blur(); } }}
+            className="w-10 bg-white/10 hover:bg-white/20 focus:bg-white/25 rounded px-1 py-0.5 text-center
+                       outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-white/70"
+          />
+          <span className="text-white/70">/ {slides.length}</span>
+        </form>
         <CtrlBtn title="ถัดไป (→)" onClick={() => go(safeCurrent + 1)}><ChevronRight className="w-5 h-5" /></CtrlBtn>
         <div className="w-px h-5 bg-white/20 mx-1" />
         {Object.entries(ITEM_FILTERS).map(([mode, label]) => (
