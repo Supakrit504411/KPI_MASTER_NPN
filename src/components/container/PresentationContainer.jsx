@@ -293,7 +293,7 @@ export default function PresentationContainer({ rawData, dataStatus, districtRan
       <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-slate-800/90 text-white rounded-full px-2 py-1.5 shadow-xl transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <CtrlBtn title="ก่อนหน้า (←)" onClick={() => go(safeCurrent - 1)}><ChevronLeft className="w-5 h-5" /></CtrlBtn>
         <form
-          className="flex items-center gap-1 px-2 text-sm tabular-nums"
+          className="flex items-center gap-1 px-2 text-sm tabular-nums whitespace-nowrap shrink-0"
           onSubmit={(e) => {
             e.preventDefault();
             const n = Number.parseInt(pageInput, 10);
@@ -316,7 +316,7 @@ export default function PresentationContainer({ rawData, dataStatus, districtRan
             className="w-10 bg-white/10 hover:bg-white/20 focus:bg-white/25 rounded px-1 py-0.5 text-center
                        outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-white/70"
           />
-          <span className="text-white/70">/ {slides.length}</span>
+          <span className="text-white/70 whitespace-nowrap">/ {slides.length}</span>
         </form>
         <CtrlBtn title="ถัดไป (→)" onClick={() => go(safeCurrent + 1)}><ChevronRight className="w-5 h-5" /></CtrlBtn>
         <div className="w-px h-5 bg-white/20 mx-1" />
