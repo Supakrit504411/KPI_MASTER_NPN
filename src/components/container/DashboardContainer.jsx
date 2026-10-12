@@ -278,7 +278,7 @@ export default function DashboardContainer() {
   }
 
   if (presenting) {
-    return <PresentationContainer rawData={rawData} dataStatus={dataStatus} onExit={() => setPresenting(false)} />;
+    return <PresentationContainer rawData={rawData} dataStatus={dataStatus} districtRanking={districtRanking} onExit={() => setPresenting(false)} />;
   }
 
   if (presentingPlan) {

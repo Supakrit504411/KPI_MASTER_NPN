@@ -38,7 +38,7 @@ function useFitScale() {
   return scale;
 }
 
-export default function PresentationContainer({ rawData, dataStatus, onExit }) {
+export default function PresentationContainer({ rawData, dataStatus, districtRanking, onExit }) {
   const allPeas = useMemo(() => getUniquePEAs(rawData), [rawData]);
   const groups = useMemo(() => getUniqueGroups(rawData), [rawData]);
   const peaGroup = useMemo(() => getPeaGroupMap(rawData), [rawData]); // กลุ่มหลักต่อหน่วยงาน (กันข้อมูลแถวหลงกลุ่ม)
@@ -231,7 +231,7 @@ export default function PresentationContainer({ rawData, dataStatus, onExit }) {
         return coverSrc ? <ImageCoverSlide src={coverSrc} fallback={builtIn} /> : builtIn;
       }
       case 'overview':
-        return <OverviewSlide overview={buildPEAOverview(rawData, focusPeas)} footer={footer} />;
+        return <OverviewSlide overview={buildPEAOverview(rawData, focusPeas, districtRanking)} footer={footer} />;
       case 'matrix':
         return <MatrixSlide index={index} focusPeas={focusPeas} deckItems={deckItems} onJump={jumpToItem} footer={footer} />;
       case 'kpi':

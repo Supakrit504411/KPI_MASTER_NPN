@@ -67,8 +67,21 @@ export function rankItemRowsByGroup(entry, peaGroupMap = {}) {
   return { ranks, counts };
 }
 
+// ลำดับความสำคัญของกลุ่มในชีต "จัดอันดับ" (หน่วยงานหนึ่งอาจอยู่ได้หลายกลุ่ม)
+const RANK_GROUP_ORDER = ['จุดรวมงาน', 'รวม', 'S', 'XS'];
+
+// หาอันดับจากชีต "จัดอันดับ" ให้ตรงกับคอลัมน์อันดับในตารางหน้าหลัก
+export function districtRankOf(districtRanking, pea) {
+  if (!districtRanking) return null;
+  for (const group of RANK_GROUP_ORDER) {
+    const info = districtRanking[group]?.[pea];
+    if (info) return { group, ...info };
+  }
+  return null;
+}
+
 // สรุปทั้งหน่วยงาน + อันดับ % คะแนนสุทธิ "เทียบเฉพาะในกลุ่ม (Group) เดียวกัน"
-export function buildPEAOverview(data, focusPeas) {
+export function buildPEAOverview(data, focusPeas, districtRanking) {
   // กลุ่มหลักของแต่ละหน่วยงาน (กันข้อมูลบางแถวที่พิมพ์กลุ่มผิด)
   const peaGroup = getPeaGroupMap(data);
   const all = getUniquePEAs(data).map((pea) => ({ ...getPEASummary(data, pea), group: peaGroup[pea] || '' }));
@@ -89,13 +102,18 @@ export function buildPEAOverview(data, focusPeas) {
     });
   }
 
-  const focus = focusPeas.map((pea) => ({
-    ...getPEASummary(data, pea),
-    group: peaGroup[pea] || '',
-    rank: rankOf[pea],
-    groupTotal: groupTotal[pea] || 0,
-    groupAvg: groupAvgOf[pea] || 0,
-  }));
+  const focus = focusPeas.map((pea) => {
+    // อันดับยึดตามชีต "จัดอันดับ" ของเขตก่อน ให้ตรงกับตารางหน้าหลัก
+    // ถ้าชีตไม่มีหน่วยงานนี้ค่อย fallback เป็นอันดับที่คำนวณในแอป
+    const d = districtRankOf(districtRanking, pea);
+    return {
+      ...getPEASummary(data, pea),
+      group: d?.group || peaGroup[pea] || '',
+      rank: d?.rank ?? rankOf[pea],
+      groupTotal: d?.total ?? groupTotal[pea] ?? 0,
+      groupAvg: groupAvgOf[pea] || 0,
+    };
+  });
 
   // ค่าเฉลี่ยของแต่ละกลุ่มที่มีหน่วยงานโฟกัสอยู่ (ไว้โชว์หัวสไลด์)
   const groups = [...new Set(focus.map((f) => f.group))].map((g) => ({
